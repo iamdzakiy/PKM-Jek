@@ -1,0 +1,251 @@
+// ─────────────────────────────────────────────────────────────────────────
+// PKM AI Memory — Prisma schema
+// Models the PIMO ontology (Project / Topic / Person / Event / Task / Note)
+// plus the Memory Buoyancy (MB), Preservation Value (PV) and Managed
+// Forgetting (IFI) machinery described in the research notes.
+// Single-tenant, private app: every row is scoped to `userId`, and app-level
+// auth (middleware.ts) only ever admits one Supabase user (yours).
+// ─────────────────────────────────────────────────────────────────────────
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ── Identity ────────────────────────────────────────────────────────────
+
+model User {
+  id        String   @id // matches Supabase auth.users.id
+  email     String   @unique
+  name      String?
+  createdAt DateTime @default(now())
+
+  projects Project[]
+  topics   Topic[]
+  people   Person[]
+  events   Event[]
+  tasks    Task[]
+  notes    Note[]
+}
+
+// ── PIMO entities ──────────────────────────────────────────────────────
+
+enum ProjectStatus {
+  ACTIVE
+  ARCHIVED
+  COMPLETED
+}
+
+model Project {
+  id          String        @id @default(cuid())
+  userId      String
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  status      ProjectStatus @default(ACTIVE)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  notes Note[]
+  tasks Task[]
+
+  @@index([userId])
+}
+
+model Topic {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  // "hot topic" flag surfaced in the ♦Associated with hot topics♦ IFI folder
+  isHot     Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  notes NoteTopic[]
+
+  @@unique([userId, name])
+  @@index([userId])
+}
+
+model Person {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name       String
+  relation   String? // e.g. "advisor", "collaborator"
+  // 1 (low) – 5 (high): feeds the Social Graph (SG) dimension of Preservation Value
+  importance Int      @default(1)
+  createdAt  DateTime @default(now())
+
+  notes NotePerson[]
+
+  @@index([userId])
+}
+
+model Event {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  startAt   DateTime
+  location  String?
+  createdAt DateTime @default(now())
+
+  notes Note[]
+
+  @@index([userId])
+}
+
+enum TaskStatus {
+  OPEN
+  IN_PROGRESS
+  DONE
+}
+
+model Task {
+  id        String     @id @default(cuid())
+  userId    String
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  projectId String?
+  project   Project?   @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  title     String
+  status    TaskStatus @default(OPEN)
+  // spatiotemporal negotiation (Kairotask-style benign friction)
+  dueAt     DateTime?
+  location  String?
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  @@index([userId, status])
+}
+
+// ── Notes: the atomic unit that memory scoring operates on ────────────
+
+enum NoteType {
+  NOTE
+  TASK
+  IDEA
+  INSIGHT
+}
+
+model Note {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  content   String
+  type      NoteType @default(NOTE)
+
+  projectId String?
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  eventId   String?
+  event     Event?   @relation(fields: [eventId], references: [id], onDelete: SetNull)
+
+  topics NoteTopic[]
+  people NotePerson[]
+
+  // spatiotemporal metadata injected at ingestion
+  spatiotemporalTime     String?
+  spatiotemporalLocation String?
+  device                 String?
+
+  // raw inputs to Preservation Value — updated as the user works the note
+  userInvestment Float @default(0) // UI: normalized effort (edits, annotations)
+  quality        Float @default(0.5) // Q: technical/content quality, 0–1
+  coverage       Float @default(0.5) // C: how well it represents its topic area, 0–1
+
+  interactions    Interaction[]
+  recallSessions  ActiveRecallSession[]
+  memoryScore     MemoryScore?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([userId, projectId])
+}
+
+model NoteTopic {
+  noteId  String
+  topicId String
+  note    Note  @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  topic   Topic @relation(fields: [topicId], references: [id], onDelete: Cascade)
+
+  @@id([noteId, topicId])
+}
+
+model NotePerson {
+  noteId   String
+  personId String
+  note     Note   @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  person   Person @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  @@id([noteId, personId])
+}
+
+// ── Activity log driving Memory Buoyancy ───────────────────────────────
+
+enum InteractionType {
+  CREATE
+  EDIT
+  COMMENT
+  VIEW
+}
+
+model Interaction {
+  id        String           @id @default(cuid())
+  noteId    String
+  note      Note             @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  type      InteractionType
+  weight    Float // w_i: CREATE=1.0 EDIT=0.8 COMMENT=0.9 VIEW=0.2
+  createdAt DateTime         @default(now())
+
+  @@index([noteId, createdAt])
+}
+
+// ── Computed memory score + Intelligent Folder Injection bucket ───────
+
+enum MemoryFolder {
+  LAST_FOCUS // ♦Last Focus♦
+  HOT_TOPICS // ♦Associated with hot topics♦
+  ACTIVE // ordinary, still visible
+  TIME_CAPSULE // low MB but high PV: kept in the long-term archive
+  FORGOTTEN // ♦Forgotten♦ — hidden, never deleted
+}
+
+model MemoryScore {
+  id                String       @id @default(cuid())
+  noteId            String       @unique
+  note              Note         @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  memoryBuoyancy    Float        @default(0)
+  preservationValue Float        @default(0)
+  folder            MemoryFolder @default(ACTIVE)
+  computedAt        DateTime     @default(now())
+
+  @@index([folder])
+}
+
+// ── Active recall / spaced repetition ──────────────────────────────────
+
+model ActiveRecallSession {
+  id            String    @id @default(cuid())
+  noteId        String
+  note          Note      @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  question      String
+  correctAnswer String
+  userAnswer    String?
+  isCorrect     Boolean?
+  // SM-2-lite scheduling: interval doubles on success, resets to 1 on failure
+  intervalDays  Int       @default(1)
+  nextReviewAt  DateTime
+  reviewedAt    DateTime?
+  createdAt     DateTime  @default(now())
+
+  @@index([noteId])
+  @@index([nextReviewAt])
+}

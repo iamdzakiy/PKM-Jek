@@ -1,0 +1,46 @@
+{
+  "name": "second-brain",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Private personal knowledge management app with AI-augmented memory (Memory Buoyancy, Preservation Value, Managed Forgetting, Spaced Repetition).",
+  "scripts": {
+    "dev": "next dev",
+    "build": "prisma generate && next build",
+    "start": "next start",
+    "lint": "next lint",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:deploy": "prisma migrate deploy",
+    "prisma:studio": "prisma studio",
+    "seed": "tsx prisma/seed.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.20.0",
+    "@supabase/ssr": "^0.5.1",
+    "@supabase/supabase-js": "^2.45.4",
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.446.0",
+    "next": "14.2.13",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "tailwind-merge": "^2.5.2",
+    "framer-motion": "^11.11.17"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.15",
+    "@types/react": "^18.3.5",
+    "@types/react-dom": "^18.3.0",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.47",
+    "prisma": "^5.20.0",
+    "tailwindcss": "^3.4.11",
+    "tsx": "^4.19.1",
+    "typescript": "^5.6.2",
+    "eslint": "^8.57.1",
+    "eslint-config-next": "14.2.13"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  }
+}

@@ -1,0 +1,2979 @@
+This file is a merged representation of the entire codebase, combined into a single document by Repomix.
+
+<file_summary>
+This section contains a summary of this file.
+
+<purpose>
+This file contains a packed representation of the entire repository's contents.
+It is designed to be easily consumable by AI systems for analysis, code review,
+or other automated processes.
+</purpose>
+
+<file_format>
+The content is organized as follows:
+1. This summary section
+2. Repository information
+3. Directory structure
+4. Repository files (if enabled)
+5. Multiple file entries, each consisting of:
+  - File path as an attribute
+  - Full contents of the file
+</file_format>
+
+<usage_guidelines>
+- This file should be treated as read-only. Any changes should be made to the
+  original repository files, not this packed version.
+- When processing this file, use the file path to distinguish
+  between different files in the repository.
+- Be aware that this file may contain sensitive information. Handle it with
+  the same level of security as you would the original repository.
+</usage_guidelines>
+
+<notes>
+- Some files may have been excluded based on .gitignore rules and Repomix's configuration
+- Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
+- Files matching patterns in .gitignore are excluded
+- Files matching default ignore patterns are excluded
+- Files are sorted by Git change count (files with more changes are at the bottom)
+</notes>
+
+</file_summary>
+
+<directory_structure>
+prisma/
+  schema.prisma
+  seed.ts
+src/
+  app/
+    (auth)/
+      login/
+        page.tsx
+    (dashboard)/
+      events/
+        page.tsx
+      notes/
+        [id]/
+          page.tsx
+        page.tsx
+      people/
+        page.tsx
+      projects/
+        page.tsx
+      recall/
+        page.tsx
+      tasks/
+        page.tsx
+      topics/
+        page.tsx
+      layout.tsx
+      page.tsx
+    actions/
+      auth.ts
+      notes.ts
+      pimo.ts
+      recall.ts
+      tasks.ts
+    api/
+      auth/
+        callback/
+          route.ts
+      recompute-scores/
+        route.ts
+    globals.css
+    layout.tsx
+  components/
+    pkm/
+      empty-state.tsx
+      note-card.tsx
+      recall-card.tsx
+      score-pill.tsx
+      sidebar.tsx
+      topbar.tsx
+    ui/
+      badge.tsx
+      button.tsx
+      card.tsx
+      input.tsx
+  lib/
+    memory/
+      recall.ts
+      scoring.ts
+    supabase/
+      client.ts
+      env.ts
+      server.ts
+    current-user.ts
+    prisma.ts
+    utils.ts
+  middleware.ts
+.env.example
+.gitignore
+next.config.js
+package.json
+postcss.config.js
+README.md
+tailwind.config.ts
+tsconfig.json
+vercel.json
+</directory_structure>
+
+<files>
+This section contains the contents of the repository's files.
+
+<file path="prisma/schema.prisma">
+// ─────────────────────────────────────────────────────────────────────────
+// PKM AI Memory — Prisma schema
+// Models the PIMO ontology (Project / Topic / Person / Event / Task / Note)
+// plus the Memory Buoyancy (MB), Preservation Value (PV) and Managed
+// Forgetting (IFI) machinery described in the research notes.
+// Single-tenant, private app: every row is scoped to `userId`, and app-level
+// auth (middleware.ts) only ever admits one Supabase user (yours).
+// ─────────────────────────────────────────────────────────────────────────
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ── Identity ────────────────────────────────────────────────────────────
+
+model User {
+  id        String   @id // matches Supabase auth.users.id
+  email     String   @unique
+  name      String?
+  createdAt DateTime @default(now())
+
+  projects Project[]
+  topics   Topic[]
+  people   Person[]
+  events   Event[]
+  tasks    Task[]
+  notes    Note[]
+}
+
+// ── PIMO entities ──────────────────────────────────────────────────────
+
+enum ProjectStatus {
+  ACTIVE
+  ARCHIVED
+  COMPLETED
+}
+
+model Project {
+  id          String        @id @default(cuid())
+  userId      String
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  status      ProjectStatus @default(ACTIVE)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  notes Note[]
+  tasks Task[]
+
+  @@index([userId])
+}
+
+model Topic {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  // "hot topic" flag surfaced in the ♦Associated with hot topics♦ IFI folder
+  isHot     Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  notes NoteTopic[]
+
+  @@unique([userId, name])
+  @@index([userId])
+}
+
+model Person {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name       String
+  relation   String? // e.g. "advisor", "collaborator"
+  // 1 (low) – 5 (high): feeds the Social Graph (SG) dimension of Preservation Value
+  importance Int      @default(1)
+  createdAt  DateTime @default(now())
+
+  notes NotePerson[]
+
+  @@index([userId])
+}
+
+model Event {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  startAt   DateTime
+  location  String?
+  createdAt DateTime @default(now())
+
+  notes Note[]
+
+  @@index([userId])
+}
+
+enum TaskStatus {
+  OPEN
+  IN_PROGRESS
+  DONE
+}
+
+model Task {
+  id        String     @id @default(cuid())
+  userId    String
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  projectId String?
+  project   Project?   @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  title     String
+  status    TaskStatus @default(OPEN)
+  // spatiotemporal negotiation (Kairotask-style benign friction)
+  dueAt     DateTime?
+  location  String?
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  @@index([userId, status])
+}
+
+// ── Notes: the atomic unit that memory scoring operates on ────────────
+
+enum NoteType {
+  NOTE
+  TASK
+  IDEA
+  INSIGHT
+}
+
+model Note {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  content   String
+  type      NoteType @default(NOTE)
+
+  projectId String?
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  eventId   String?
+  event     Event?   @relation(fields: [eventId], references: [id], onDelete: SetNull)
+
+  topics NoteTopic[]
+  people NotePerson[]
+
+  // spatiotemporal metadata injected at ingestion
+  spatiotemporalTime     String?
+  spatiotemporalLocation String?
+  device                 String?
+
+  // raw inputs to Preservation Value — updated as the user works the note
+  userInvestment Float @default(0) // UI: normalized effort (edits, annotations)
+  quality        Float @default(0.5) // Q: technical/content quality, 0–1
+  coverage       Float @default(0.5) // C: how well it represents its topic area, 0–1
+
+  interactions    Interaction[]
+  recallSessions  ActiveRecallSession[]
+  memoryScore     MemoryScore?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([userId, projectId])
+}
+
+model NoteTopic {
+  noteId  String
+  topicId String
+  note    Note  @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  topic   Topic @relation(fields: [topicId], references: [id], onDelete: Cascade)
+
+  @@id([noteId, topicId])
+}
+
+model NotePerson {
+  noteId   String
+  personId String
+  note     Note   @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  person   Person @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  @@id([noteId, personId])
+}
+
+// ── Activity log driving Memory Buoyancy ───────────────────────────────
+
+enum InteractionType {
+  CREATE
+  EDIT
+  COMMENT
+  VIEW
+}
+
+model Interaction {
+  id        String           @id @default(cuid())
+  noteId    String
+  note      Note             @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  type      InteractionType
+  weight    Float // w_i: CREATE=1.0 EDIT=0.8 COMMENT=0.9 VIEW=0.2
+  createdAt DateTime         @default(now())
+
+  @@index([noteId, createdAt])
+}
+
+// ── Computed memory score + Intelligent Folder Injection bucket ───────
+
+enum MemoryFolder {
+  LAST_FOCUS // ♦Last Focus♦
+  HOT_TOPICS // ♦Associated with hot topics♦
+  ACTIVE // ordinary, still visible
+  FORGOTTEN // ♦Forgotten♦ — hidden, never deleted
+}
+
+model MemoryScore {
+  id                String       @id @default(cuid())
+  noteId            String       @unique
+  note              Note         @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  memoryBuoyancy    Float        @default(0)
+  preservationValue Float        @default(0)
+  folder            MemoryFolder @default(ACTIVE)
+  computedAt        DateTime     @default(now())
+
+  @@index([folder])
+}
+
+// ── Active recall / spaced repetition ──────────────────────────────────
+
+model ActiveRecallSession {
+  id            String    @id @default(cuid())
+  noteId        String
+  note          Note      @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  question      String
+  correctAnswer String
+  userAnswer    String?
+  isCorrect     Boolean?
+  // SM-2-lite scheduling: interval doubles on success, resets to 1 on failure
+  intervalDays  Int       @default(1)
+  nextReviewAt  DateTime
+  reviewedAt    DateTime?
+  createdAt     DateTime  @default(now())
+
+  @@index([noteId])
+  @@index([nextReviewAt])
+}
+</file>
+
+<file path="prisma/seed.ts">
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
+
+/**
+ * Seeds one example workspace so the dashboard isn't empty on first run.
+ * Replace SEED_USER_ID/EMAIL with your real Supabase auth user id after you
+ * sign in once (check the `User` table in Prisma Studio, or the Supabase
+ * dashboard's Authentication tab) — then re-run `npm run seed`.
+ */
+async function main() {
+  const userId = process.env.SEED_USER_ID;
+  const email = process.env.SEED_USER_EMAIL ?? process.env.ALLOWED_EMAIL;
+
+  if (!userId) {
+    console.log(
+      'Set SEED_USER_ID (your Supabase auth user id, from the User table after first login) to seed example data. Skipping.'
+    );
+    return;
+  }
+
+  await prisma.user.upsert({
+    where: { id: userId },
+    update: {},
+    create: { id: userId, email: email ?? 'you@example.com' },
+  });
+
+  const project = await prisma.project.create({
+    data: { userId, name: 'Final Project — Arsitektur', description: 'Contoh proyek awal (data contoh).' },
+  });
+
+  const topic = await prisma.topic.upsert({
+    where: { userId_name: { userId, name: 'Managed Forgetting' } },
+    update: {},
+    create: { userId, name: 'Managed Forgetting', isHot: true },
+  });
+
+  const note = await prisma.note.create({
+    data: {
+      userId,
+      title: 'Contoh: Mekanisme Memory Buoyancy',
+      content:
+        'Catatan contoh — hapus atau edit sesuka hati. MB meluruh secara eksponensial berdasarkan Δt sejak interaksi terakhir.',
+      type: 'INSIGHT',
+      projectId: project.id,
+      spatiotemporalLocation: 'Lab Komputer / Jakarta',
+      topics: { create: { topicId: topic.id } },
+      interactions: { create: { type: 'CREATE', weight: 1.0 } },
+    },
+  });
+
+  await prisma.memoryScore.create({
+    data: { noteId: note.id, memoryBuoyancy: 0.9, preservationValue: 0.5, folder: 'LAST_FOCUS' },
+  });
+
+  await prisma.task.create({
+    data: { userId, title: 'Contoh: baca artikel tentang PIMO', location: 'Rumah', dueAt: new Date(Date.now() + 86_400_000) },
+  });
+
+  console.log('Seed selesai.');
+}
+
+main()
+  .catch((e) => {
+    console.error(e);
+    process.exit(1);
+  })
+  .finally(() => prisma.$disconnect());
+</file>
+
+<file path="src/app/(auth)/login/page.tsx">
+'use client';
+
+import { useFormState, useFormStatus } from 'react-dom';
+import { useSearchParams } from 'next/navigation';
+import { sendMagicLink, type AuthActionState } from '@/app/actions/auth';
+import { Button } from '@/components/ui/button';
+import { Input, Label } from '@/components/ui/input';
+import { Card } from '@/components/ui/card';
+
+const initialState: AuthActionState = { status: 'idle' };
+
+function SubmitButton() {
+  const { pending } = useFormStatus();
+  return (
+    <Button type="submit" className="w-full" disabled={pending}>
+      {pending ? 'Mengirim…' : 'Kirim link masuk'}
+    </Button>
+  );
+}
+
+export default function LoginPage() {
+  const [state, formAction] = useFormState(sendMagicLink, initialState);
+  const params = useSearchParams();
+  const denied = params.get('denied');
+
+  return (
+    <main className="flex min-h-screen items-center justify-center px-4">
+      <div className="w-full max-w-sm">
+        <div className="mb-8 text-center">
+          <div className="mx-auto mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-accent text-white font-display text-lg">
+            ✺
+          </div>
+          <h1 className="font-display text-2xl font-semibold text-ink">Second Brain</h1>
+          <p className="mt-1 text-sm text-ink-soft">Ruang privat — hanya untuk satu orang.</p>
+        </div>
+
+        <Card>
+          {denied && (
+            <p className="mb-4 rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-600 dark:text-red-400">
+              Akun itu tidak diizinkan mengakses aplikasi ini.
+            </p>
+          )}
+
+          {state.status === 'sent' ? (
+            <p className="text-sm text-ink">{state.message}</p>
+          ) : (
+            <form action={formAction} className="space-y-4">
+              <div>
+                <Label htmlFor="email">Email</Label>
+                <Input id="email" name="email" type="email" placeholder="you@example.com" required autoFocus />
+              </div>
+              {state.status === 'error' && (
+                <p className="text-sm text-red-600 dark:text-red-400">{state.message}</p>
+              )}
+              <SubmitButton />
+            </form>
+          )}
+        </Card>
+
+        <p className="mt-6 text-center text-xs text-ink-soft">
+          Akses dibatasi ke satu alamat email yang terdaftar di server.
+        </p>
+      </div>
+    </main>
+  );
+}
+</file>
+
+<file path="src/app/(dashboard)/events/page.tsx">
+import { CalendarDays } from 'lucide-react';
+import { prisma } from '@/lib/prisma';
+import { requireUser } from '@/lib/current-user';
+import { createEvent } from '@/app/actions/pimo';
+import { TopBar } from '@/components/pkm/topbar';
+import { EmptyState } from '@/components/pkm/empty-state';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input, Label } from '@/components/ui/input';
+
+export const dynamic = 'force-dynamic';
+
+export default async function EventsPage() {
+  const user = await requireUser();
+  const events = await prisma.event.findMany({ where: { userId: user.id }, orderBy: { startAt: 'asc' } });
+
+  return (
+    <>
+      <TopBar title="Acara" email={user.email} />
+      <div className="flex-1 space-y-6 p-5">
+        <Card>
+          <form action={createEvent} className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div>
+              <Label htmlFor="title">Judul</Label>
+              <Input id="title" name="title" required />
+            </div>
+            <div>
+              <Label htmlFor="startAt">Waktu</Label>
+              <Input id="startAt" name="startAt" type="datetime-local" required />
+            </div>
+            <div>
+              <Label htmlFor="location">Lokasi</Label>
+              <Input id="location" name="location" />
+            </div>
+            <div className="sm:col-span-3">
+              <Button type="submit">Tambah acara</Button>
+            </div>
+          </form>
+        </Card>
+
+        {events.length === 0 ? (
+          <EmptyState icon={CalendarDays} title="Belum ada acara" description="Acara memberi konteks lokasi & waktu bagi catatan yang terhubung." />
+        ) : (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {events.map((e) => (
+              <Card key={e.id}>
+                <p className="font-medium text-ink">{e.title}</p>
+                <p className="text-sm text-ink-soft">
+                  {new Date(e.startAt).toLocaleString('id-ID', { dateStyle: 'long', timeStyle: 'short' })}
+                </p>
+                {e.location && <p className="text-xs text-ink-soft">{e.location}</p>}
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
+</file>
+
+<file path="src/app/(dashboard)/notes/[id]/page.tsx">
+import { notFound } from 'next/navigation';
+import { Trash2, BrainCircuit } from 'lucide-react';
+import { prisma } from '@/lib/prisma';
+import { requireUser } from '@/lib/current-user';
+import { updateNote, deleteNote } from '@/app/actions/notes';
+import { scheduleRecall } from '@/app/actions/recall';
+import { TopBar } from '@/components/pkm/topbar';
+import { ScorePill } from '@/components/pkm/score-pill';
+import { Card, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input, Label, Textarea } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import { formatRelative } from '@/lib/utils';
+
+export const dynamic = 'force-dynamic';
+
+export default async function NoteDetailPage({ params }: { params: { id: string } }) {
+  const user = await requireUser();
+  const note = await prisma.note.findFirst({
+    where: { id: params.id, userId: user.id },
+    include: {
+      topics: { include: { topic: true } },
+      memoryScore: true,
+      recallSessions: { orderBy: { createdAt: 'desc' } },
+      project: true,
+    },
+  });
+  if (!note) notFound();
+
+  // Logging a view is a first-class MB interaction — do it inline since this
+  // page load itself is "seeing the note again".
+  await prisma.interaction.create({ data: { noteId: note.id, type: 'VIEW', weight: 0.2 } });
+
+  const boundUpdate = updateNote.bind(null, note.id);
+  const boundDelete = deleteNote.bind(null, note.id);
+
+  async function boundScheduleRecall(formData: FormData) {
+    'use server';
+    const question = String(formData.get('question') ?? '').trim();
+    const answer = String(formData.get('answer') ?? '').trim();
+    if (question && answer) await scheduleRecall(note!.id, question, answer);
+  }
+
+  return (
+    <>
+      <TopBar title="Catatan" email={user.email} />
+      <div className="mx-auto w-full max-w-3xl flex-1 space-y-6 p-5">
+        <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge tone="accent">{note.type}</Badge>
+            {note.project && <Badge tone="neutral">{note.project.name}</Badge>}
+            {note.topics.map(({ topic }) => (
+              <Badge key={topic.id} tone={topic.isHot ? 'warning' : 'neutral'}>
+                #{topic.name}
+              </Badge>
+            ))}
+          </div>
+          <form action={boundDelete}>
+            <Button variant="ghost" size="sm" type="submit" title="Hapus catatan">
+              <Trash2 size={15} className="text-red-500" />
+            </Button>
+          </form>
+        </div>
+
+        {note.memoryScore && (
+          <Card className="flex flex-wrap items-center gap-6">
+            <ScorePill label="Memory Buoyancy" value={note.memoryScore.memoryBuoyancy} tone="accent" />
+            <ScorePill label="Preservation Value" value={note.memoryScore.preservationValue} tone="accent2" />
+            <span className="text-xs text-ink-soft">
+              Terakhir dihitung {formatRelative(new Date(note.memoryScore.computedAt))}
+            </span>
+          </Card>
+        )}
+
+        <Card>
+          <form action={boundUpdate} className="space-y-4">
+            <div>
+              <Label htmlFor="title">Judul</Label>
+              <Input id="title" name="title" defaultValue={note.title} required />
+            </div>
+            <div>
+              <Label htmlFor="content">Isi</Label>
+              <Textarea id="content" name="content" defaultValue={note.content} rows={8} />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="quality">Quality (0–1)</Label>
+                <Input id="quality" name="quality" type="number" step="0.1" min="0" max="1" defaultValue={note.quality} />
+              </div>
+              <div>
+                <Label htmlFor="coverage">Coverage (0–1)</Label>
+                <Input id="coverage" name="coverage" type="number" step="0.1" min="0" max="1" defaultValue={note.coverage} />
+              </div>
+            </div>
+            <Button type="submit">Simpan perubahan</Button>
+          </form>
+        </Card>
+
+        <Card>
+          <div className="mb-3 flex items-center gap-2">
+            <BrainCircuit size={16} className="text-accent" />
+            <CardTitle>Active Recall</CardTitle>
+          </div>
+          <form action={boundScheduleRecall} className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <Input name="question" placeholder="Pertanyaan kuis" required />
+            <Input name="answer" placeholder="Jawaban benar" required />
+            <div className="sm:col-span-2">
+              <Button type="submit" variant="secondary" size="sm">
+                Jadwalkan kuis untuk catatan ini
+              </Button>
+            </div>
+          </form>
+
+          {note.recallSessions.length === 0 ? (
+            <p className="text-sm text-ink-soft">Belum ada kuis dijadwalkan.</p>
+          ) : (
+            <ul className="space-y-2">
+              {note.recallSessions.map((s) => (
+                <li key={s.id} className="flex items-center justify-between rounded-lg bg-bg px-3 py-2 text-sm">
+                  <span className="text-ink">{s.question}</span>
+                  <Badge tone={s.isCorrect === null ? 'neutral' : s.isCorrect ? 'accent2' : 'danger'}>
+                    {s.isCorrect === null ? 'menunggu' : s.isCorrect ? 'benar' : 'salah'}
+                  </Badge>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+      </div>
+    </>
+  );
+}
+</file>
+
+<file path="src/app/(dashboard)/notes/page.tsx">
+import { NotebookText } from 'lucide-react';
+import { prisma } from '@/lib/prisma';
+import { requireUser } from '@/lib/current-user';
+import { createNote } from '@/app/actions/notes';
+import { TopBar } from '@/components/pkm/topbar';
+import { NoteCard } from '@/components/pkm/note-card';
+import { EmptyState } from '@/components/pkm/empty-state';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input, Label, Select, Textarea } from '@/components/ui/input';
+
+export const dynamic = 'force-dynamic';
+
+export default async function NotesPage({ searchParams }: { searchParams: { new?: string } }) {
+  const user = await requireUser();
+  const [notes, projects] = await Promise.all([
+    prisma.note.findMany({
+      where: { userId: user.id },
+      include: { topics: { include: { topic: true } }, memoryScore: true },
+      orderBy: { updatedAt: 'desc' },
+    }),
+    prisma.project.findMany({ where: { userId: user.id, status: 'ACTIVE' } }),
+  ]);
+
+  return (
+    <>
+      <TopBar title="Catatan" email={user.email} />
+      <div className="flex-1 space-y-6 p-5">
+        <Card>
+          <details open={searchParams.new === '1'}>
+            <summary className="cursor-pointer text-sm font-semibold text-ink">+ Tulis catatan baru</summary>
+            <form action={createNote} className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="sm:col-span-2">
+                <Label htmlFor="title">Judul</Label>
+                <Input id="title" name="title" required placeholder="mis. Mekanisme Memory Buoyancy" />
+              </div>
+              <div className="sm:col-span-2">
+                <Label htmlFor="content">Isi</Label>
+                <Textarea id="content" name="content" rows={4} placeholder="Tuliskan idenya dengan kata-katamu sendiri…" />
+              </div>
+              <div>
+                <Label htmlFor="type">Tipe</Label>
+                <Select id="type" name="type" defaultValue="NOTE">
+                  <option value="NOTE">Note</option>
+                  <option value="TASK">Task</option>
+                  <option value="IDEA">Idea</option>
+                  <option value="INSIGHT">Insight</option>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="projectId">Proyek (opsional)</Label>
+                <Select id="projectId" name="projectId" defaultValue="">
+                  <option value="">— tanpa proyek —</option>
+                  {projects.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="topics">Topik (pisahkan koma)</Label>
+                <Input id="topics" name="topics" placeholder="Managed Forgetting, PIMO" />
+              </div>
+              <div>
+                <Label htmlFor="location">Lokasi</Label>
+                <Input id="location" name="location" placeholder="mis. Lab Komputer / Jakarta" />
+              </div>
+              <div className="sm:col-span-2">
+                <Button type="submit">Simpan catatan</Button>
+              </div>
+            </form>
+          </details>
+        </Card>
+
+        {notes.length === 0 ? (
+          <EmptyState
+            icon={NotebookText}
+            title="Belum ada catatan"
+            description="Catatan pertamamu akan langsung masuk ke ♦Last Focus♦."
+          />
+        ) : (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {notes.map((note) => (
+              <NoteCard key={note.id} note={note} />
+            ))}
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
+</file>
+
+<file path="src/app/(dashboard)/people/page.tsx">
+import { Users } from 'lucide-react';
+import { prisma } from '@/lib/prisma';
+import { requireUser } from '@/lib/current-user';
+import { createPerson } from '@/app/actions/pimo';
+import { TopBar } from '@/components/pkm/topbar';
+import { EmptyState } from '@/components/pkm/empty-state';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input, Label, Select } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+
+export const dynamic = 'force-dynamic';
+
+export default async function PeoplePage() {
+  const user = await requireUser();
+  const people = await prisma.person.findMany({
+    where: { userId: user.id },
+    include: { _count: { select: { notes: true } } },
+    orderBy: { importance: 'desc' },
+  });
+
+  return (
+    <>
+      <TopBar title="Orang" email={user.email} />
+      <div className="flex-1 space-y-6 p-5">
+        <Card>
+          <form action={createPerson} className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div>
+              <Label htmlFor="name">Nama</Label>
+              <Input id="name" name="name" required />
+            </div>
+            <div>
+              <Label htmlFor="relation">Relasi</Label>
+              <Input id="relation" name="relation" placeholder="mis. dosen pembimbing" />
+            </div>
+            <div>
+              <Label htmlFor="importance">Kepentingan (1–5)</Label>
+              <Select id="importance" name="importance" defaultValue="3">
+                {[1, 2, 3, 4, 5].map((n) => (
+                  <option key={n} value={n}>
+                    {n}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            <div className="sm:col-span-3">
+              <Button type="submit">Tambah orang</Button>
+            </div>
+          </form>
+        </Card>
+
+        {people.length === 0 ? (
+          <EmptyState icon={Users} title="Belum ada orang" description="Menghubungkan catatan ke orang penting menaikkan Social Graph (SG) di Preservation Value." />
+        ) : (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {people.map((p) => (
+              <Card key={p.id} className="flex items-center justify-between">
+                <div>
+                  <p className="font-medium text-ink">{p.name}</p>
+                  {p.relation && <p className="text-xs text-ink-soft">{p.relation}</p>}
+                </div>
+                <Badge tone="accent2">★ {p.importance}</Badge>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
+</file>
+
+<file path="src/app/(dashboard)/projects/page.tsx">
+import { FolderKanban } from 'lucide-react';
+import { prisma } from '@/lib/prisma';
+import { requireUser } from '@/lib/current-user';
+import { createProject, setProjectStatus } from '@/app/actions/pimo';
+import { TopBar } from '@/components/pkm/topbar';
+import { EmptyState } from '@/components/pkm/empty-state';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input, Label, Select, Textarea } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+
+export const dynamic = 'force-dynamic';
+
+export default async function ProjectsPage() {
+  const user = await requireUser();
+  const projects = await prisma.project.findMany({
+    where: { userId: user.id },
+    include: { _count: { select: { notes: true, tasks: true } } },
+    orderBy: { createdAt: 'desc' },
+  });
+
+  return (
+    <>
+      <TopBar title="Proyek" email={user.email} />
+      <div className="flex-1 space-y-6 p-5">
+        <Card>
+          <form action={createProject} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <Label htmlFor="name">Nama proyek</Label>
+              <Input id="name" name="name" required placeholder="mis. Beta Launch" />
+            </div>
+            <div>
+              <Label htmlFor="description">Deskripsi</Label>
+              <Textarea id="description" name="description" rows={1} />
+            </div>
+            <Button type="submit" className="w-fit">
+              Tambah proyek
+            </Button>
+          </form>
+        </Card>
+
+        {projects.length === 0 ? (
+          <EmptyState icon={FolderKanban} title="Belum ada proyek" description="Kelompokkan catatan dan tugas ke dalam proyek." />
+        ) : (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {projects.map((p) => (
+              <Card key={p.id}>
+                <div className="mb-2 flex items-center justify-between">
+                  <h3 className="font-display font-semibold text-ink">{p.name}</h3>
+                  <Badge tone={p.status === 'ACTIVE' ? 'accent2' : 'neutral'}>{p.status}</Badge>
+                </div>
+                {p.description && <p className="mb-3 text-sm text-ink-soft">{p.description}</p>}
+                <p className="mb-3 text-xs text-ink-soft">
+                  {p._count.notes} catatan · {p._count.tasks} tugas
+                </p>
+                <form
+                  action={async (formData: FormData) => {
+                    'use server';
+                    await setProjectStatus(p.id, formData.get('status') as any);
+                  }}
+                  className="flex items-center gap-2"
+                >
+                  <Select name="status" defaultValue={p.status} className="w-auto text-xs">
+                    <option value="ACTIVE">Active</option>
+                    <option value="COMPLETED">Completed</option>
+                    <option value="ARCHIVED">Archived</option>
+                  </Select>
+                  <Button type="submit" size="sm" variant="secondary">
+                    Update
+                  </Button>
+                </form>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
+</file>
+
+<file path="src/app/(dashboard)/recall/page.tsx">
+import { BrainCircuit } from 'lucide-react';
+import { prisma } from '@/lib/prisma';
+import { requireUser } from '@/lib/current-user';
+import { TopBar } from '@/components/pkm/topbar';
+import { RecallCard } from '@/components/pkm/recall-card';
+import { EmptyState } from '@/components/pkm/empty-state';
+
+export const dynamic = 'force-dynamic';
+
+export default async function RecallPage() {
+  const user = await requireUser();
+
+  const dueSessions = await prisma.activeRecallSession.findMany({
+    where: {
+      reviewedAt: null,
+      nextReviewAt: { lte: new Date() },
+      note: { userId: user.id },
+    },
+    include: { note: true },
+    orderBy: { nextReviewAt: 'asc' },
+  });
+
+  return (
+    <>
+      <TopBar title="Active Recall" email={user.email} />
+      <div className="mx-auto w-full max-w-2xl flex-1 space-y-4 p-5">
+        <p className="text-sm text-ink-soft">
+          {dueSessions.length} kuis menunggu hari ini — jawab dengan bebas (free recall) sebelum melihat jawaban,
+          sesuai jadwal H+1 / H+7 / H+30.
+        </p>
+
+        {dueSessions.length === 0 ? (
+          <EmptyState
+            icon={BrainCircuit}
+            title="Semua terjadwal ulang"
+            description="Tidak ada kuis yang jatuh tempo sekarang. Jadwalkan kuis baru dari halaman sebuah catatan."
+          />
+        ) : (
+          <div className="space-y-3">
+            {dueSessions.map((s) => (
+              <RecallCard
+                key={s.id}
+                sessionId={s.id}
+                question={s.question}
+                correctAnswer={s.correctAnswer}
+                noteTitle={s.note.title}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
+</file>
+
+<file path="src/app/(dashboard)/tasks/page.tsx">
+import { ListChecks } from 'lucide-react';
+import { prisma } from '@/lib/prisma';
+import { requireUser } from '@/lib/current-user';
+import { createTask, setTaskStatus } from '@/app/actions/tasks';
+import { TopBar } from '@/components/pkm/topbar';
+import { EmptyState } from '@/components/pkm/empty-state';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input, Label, Select } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import type { TaskStatus } from '@prisma/client';
+
+export const dynamic = 'force-dynamic';
+
+const STATUS_TONE: Record<TaskStatus, 'neutral' | 'accent' | 'accent2'> = {
+  OPEN: 'neutral',
+  IN_PROGRESS: 'accent',
+  DONE: 'accent2',
+};
+
+export default async function TasksPage() {
+  const user = await requireUser();
+  const [tasks, projects] = await Promise.all([
+    prisma.task.findMany({ where: { userId: user.id }, include: { project: true }, orderBy: { createdAt: 'desc' } }),
+    prisma.project.findMany({ where: { userId: user.id, status: 'ACTIVE' } }),
+  ]);
+
+  return (
+    <>
+      <TopBar title="Tugas" email={user.email} />
+      <div className="flex-1 space-y-6 p-5">
+        <Card>
+          <p className="mb-3 text-xs text-ink-soft">
+            Benign friction: tetapkan waktu &amp; lokasi secara eksplisit alih-alih membiarkan niat samar mengendap.
+          </p>
+          <form action={createTask} className="grid grid-cols-1 gap-4 sm:grid-cols-4">
+            <div className="sm:col-span-2">
+              <Label htmlFor="title">Tugas</Label>
+              <Input id="title" name="title" required placeholder="mis. Baca artikel X" />
+            </div>
+            <div>
+              <Label htmlFor="dueAt">Kapan</Label>
+              <Input id="dueAt" name="dueAt" type="datetime-local" />
+            </div>
+            <div>
+              <Label htmlFor="location">Di mana</Label>
+              <Input id="location" name="location" placeholder="mis. Rumah" />
+            </div>
+            <div className="sm:col-span-4 flex items-end gap-4">
+              <div className="flex-1">
+                <Label htmlFor="projectId">Proyek (opsional)</Label>
+                <Select id="projectId" name="projectId" defaultValue="">
+                  <option value="">— tanpa proyek —</option>
+                  {projects.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+              <Button type="submit">Tambah tugas</Button>
+            </div>
+          </form>
+        </Card>
+
+        {tasks.length === 0 ? (
+          <EmptyState icon={ListChecks} title="Belum ada tugas" description="Tugas tanpa waktu & lokasi jelas gagal memicu ingatan prospektif." />
+        ) : (
+          <div className="space-y-2">
+            {tasks.map((t) => (
+              <Card key={t.id} className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="font-medium text-ink">{t.title}</p>
+                  <p className="text-xs text-ink-soft">
+                    {t.project ? `${t.project.name} · ` : ''}
+                    {t.dueAt ? new Date(t.dueAt).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' }) : 'tanpa waktu'}
+                    {t.location ? ` · ${t.location}` : ''}
+                  </p>
+                </div>
+                <form
+                  action={async (formData: FormData) => {
+                    'use server';
+                    await setTaskStatus(t.id, formData.get('status') as TaskStatus);
+                  }}
+                  className="flex items-center gap-2"
+                >
+                  <Select name="status" defaultValue={t.status} className="w-auto text-xs">
+                    <option value="OPEN">Open</option>
+                    <option value="IN_PROGRESS">In progress</option>
+                    <option value="DONE">Done</option>
+                  </Select>
+                  <Badge tone={STATUS_TONE[t.status]}>{t.status}</Badge>
+                  <Button type="submit" size="sm" variant="secondary">
+                    Update
+                  </Button>
+                </form>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
+</file>
+
+<file path="src/app/(dashboard)/topics/page.tsx">
+import { Hash, Flame } from 'lucide-react';
+import { prisma } from '@/lib/prisma';
+import { requireUser } from '@/lib/current-user';
+import { createTopic, toggleHotTopic } from '@/app/actions/pimo';
+import { TopBar } from '@/components/pkm/topbar';
+import { EmptyState } from '@/components/pkm/empty-state';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input, Label } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+
+export const dynamic = 'force-dynamic';
+
+export default async function TopicsPage() {
+  const user = await requireUser();
+  const topics = await prisma.topic.findMany({
+    where: { userId: user.id },
+    include: { _count: { select: { notes: true } } },
+    orderBy: { name: 'asc' },
+  });
+
+  return (
+    <>
+      <TopBar title="Topik" email={user.email} />
+      <div className="flex-1 space-y-6 p-5">
+        <Card>
+          <form action={createTopic} className="flex flex-wrap items-end gap-4">
+            <div className="flex-1 min-w-[200px]">
+              <Label htmlFor="name">Nama topik</Label>
+              <Input id="name" name="name" required placeholder="mis. Managed Forgetting" />
+            </div>
+            <label className="mb-1.5 flex items-center gap-2 text-sm text-ink">
+              <input type="checkbox" name="isHot" className="accent-[var(--accent)]" /> Hot topic
+            </label>
+            <Button type="submit">Tambah</Button>
+          </form>
+        </Card>
+
+        {topics.length === 0 ? (
+          <EmptyState icon={Hash} title="Belum ada topik" description="Topik menghubungkan catatan lintas proyek dan waktu." />
+        ) : (
+          <div className="flex flex-wrap gap-3">
+            {topics.map((t) => (
+              <Card key={t.id} className="flex items-center gap-3">
+                <span className="text-sm font-medium text-ink">#{t.name}</span>
+                <Badge tone="neutral">{t._count.notes} catatan</Badge>
+                <form
+                  action={async () => {
+                    'use server';
+                    await toggleHotTopic(t.id, !t.isHot);
+                  }}
+                >
+                  <Button type="submit" size="sm" variant={t.isHot ? 'primary' : 'ghost'}>
+                    <Flame size={13} /> {t.isHot ? 'Hot' : 'Jadikan hot'}
+                  </Button>
+                </form>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
+</file>
+
+<file path="src/app/(dashboard)/layout.tsx">
+import { requireUser } from '@/lib/current-user';
+import { Sidebar } from '@/components/pkm/sidebar';
+
+export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
+  // Enforces sign-in + resolves the Prisma User row; middleware.ts already
+  // blocked anyone whose email isn't ALLOWED_EMAIL before this ever runs.
+  await requireUser();
+
+  return (
+    <div className="flex min-h-screen">
+      <Sidebar />
+      <div className="flex min-w-0 flex-1 flex-col">{children}</div>
+    </div>
+  );
+}
+</file>
+
+<file path="src/app/(dashboard)/page.tsx">
+import { Sparkles, Flame, Archive, ListChecks } from 'lucide-react';
+import { prisma } from '@/lib/prisma';
+import { requireUser } from '@/lib/current-user';
+import { TopBar } from '@/components/pkm/topbar';
+import { NoteCard, FOLDER_LABEL } from '@/components/pkm/note-card';
+import { EmptyState } from '@/components/pkm/empty-state';
+import { Card } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import type { MemoryFolder } from '@prisma/client';
+
+export const dynamic = 'force-dynamic';
+
+async function getBoardData(userId: string) {
+  const notes = await prisma.note.findMany({
+    where: { userId },
+    include: { topics: { include: { topic: true } }, memoryScore: true },
+    orderBy: { updatedAt: 'desc' },
+  });
+
+  const board: Record<MemoryFolder, typeof notes> = {
+    LAST_FOCUS: [],
+    HOT_TOPICS: [],
+    ACTIVE: [],
+    FORGOTTEN: [],
+  };
+  for (const note of notes) {
+    const folder = note.memoryScore?.folder ?? 'ACTIVE';
+    board[folder].push(note);
+  }
+  return board;
+}
+
+export default async function DashboardPage() {
+  const user = await requireUser();
+  const [board, tasks, events] = await Promise.all([
+    getBoardData(user.id),
+    prisma.task.findMany({
+      where: { userId: user.id, status: { not: 'DONE' } },
+      orderBy: { dueAt: 'asc' },
+      take: 5,
+    }),
+    prisma.event.findMany({
+      where: { userId: user.id, startAt: { gte: new Date() } },
+      orderBy: { startAt: 'asc' },
+      take: 3,
+    }),
+  ]);
+
+  const columns: { key: MemoryFolder; icon: typeof Sparkles }[] = [
+    { key: 'LAST_FOCUS', icon: Sparkles },
+    { key: 'HOT_TOPICS', icon: Flame },
+    { key: 'FORGOTTEN', icon: Archive },
+  ];
+
+  return (
+    <>
+      <TopBar title="Dashboard" email={user.email} />
+      <div className="flex-1 space-y-6 p-5">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[2fr,1fr]">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            {columns.map(({ key, icon: Icon }) => (
+              <Card key={key} className="p-0">
+                <div className="flex items-center gap-2 border-b border-line px-4 py-3">
+                  <Icon size={15} className="text-accent" />
+                  <h2 className="text-sm font-semibold text-ink">{FOLDER_LABEL[key]}</h2>
+                  <span className="ml-auto text-xs tabular text-ink-soft">{board[key].length}</span>
+                </div>
+                <div className="max-h-[440px] space-y-3 overflow-y-auto p-3">
+                  {board[key].length === 0 ? (
+                    <p className="px-1 py-6 text-center text-xs text-ink-soft">Kosong untuk saat ini.</p>
+                  ) : (
+                    board[key].map((note) => <NoteCard key={note.id} note={note} />)
+                  )}
+                </div>
+              </Card>
+            ))}
+          </div>
+
+          <div className="space-y-4">
+            <Card>
+              <div className="mb-3 flex items-center gap-2">
+                <ListChecks size={16} className="text-accent" />
+                <h2 className="text-sm font-semibold text-ink">Tugas mendatang</h2>
+              </div>
+              {tasks.length === 0 ? (
+                <p className="text-sm text-ink-soft">Tidak ada tugas terbuka.</p>
+              ) : (
+                <ul className="space-y-2.5">
+                  {tasks.map((t) => (
+                    <li key={t.id} className="flex items-center justify-between text-sm">
+                      <span className="text-ink">{t.title}</span>
+                      {t.dueAt && (
+                        <Badge tone="accent">
+                          {new Date(t.dueAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}
+                        </Badge>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Card>
+
+            <Card>
+              <h2 className="mb-3 text-sm font-semibold text-ink">Acara berikutnya</h2>
+              {events.length === 0 ? (
+                <p className="text-sm text-ink-soft">Tidak ada acara terjadwal.</p>
+              ) : (
+                <ul className="space-y-2.5">
+                  {events.map((e) => (
+                    <li key={e.id} className="text-sm">
+                      <p className="text-ink">{e.title}</p>
+                      <p className="text-xs text-ink-soft">
+                        {new Date(e.startAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'long' })}
+                        {e.location ? ` · ${e.location}` : ''}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Card>
+          </div>
+        </div>
+
+        {Object.values(board).flat().length === 0 && (
+          <EmptyState
+            icon={Sparkles}
+            title="Belum ada catatan"
+            description="Mulai dengan menambahkan catatan pertamamu — sistem akan mulai menghitung Memory Buoyancy dan Preservation Value secara otomatis."
+          />
+        )}
+      </div>
+    </>
+  );
+}
+</file>
+
+<file path="src/app/actions/auth.ts">
+'use server';
+
+import { createClient } from '@/lib/supabase/server';
+import { describeAuthError, supabaseEnvProblem } from '@/lib/supabase/env';
+
+export interface AuthActionState {
+  status: 'idle' | 'sent' | 'error';
+  message?: string;
+}
+
+/**
+ * Sends a magic link. We never expose a password field — a link emailed to
+ * the one inbox you control is simpler to keep private than a password.
+ * Even if someone requests a link for another address, middleware.ts still
+ * blocks any session whose email isn't ALLOWED_EMAIL.
+ */
+export async function sendMagicLink(_prev: AuthActionState, formData: FormData): Promise<AuthActionState> {
+  const email = String(formData.get('email') ?? '').trim().toLowerCase();
+  const allowed = process.env.ALLOWED_EMAIL?.toLowerCase().trim();
+
+  if (!email) return { status: 'error', message: 'Masukkan alamat email.' };
+  if (allowed && email !== allowed) {
+    return { status: 'error', message: 'Alamat ini tidak diizinkan mengakses aplikasi private ini.' };
+  }
+
+  // Fail fast with an actionable message when .env still holds the
+  // .env.example placeholders — otherwise the request to
+  // https://YOUR-PROJECT-REF.supabase.co dies as an opaque "fetch failed".
+  const envProblem = supabaseEnvProblem();
+  if (envProblem) return { status: 'error', message: envProblem };
+
+  const supabase = createClient();
+  try {
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options: {
+        emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'}/api/auth/callback`,
+      },
+    });
+
+    if (error) return { status: 'error', message: describeAuthError(error) };
+  } catch (err) {
+    // Network-level failures (fetch failed) are thrown, not returned.
+    return { status: 'error', message: describeAuthError(err) };
+  }
+
+  return { status: 'sent', message: `Link masuk telah dikirim ke ${email}.` };
+}
+
+export async function signOut() {
+  const supabase = createClient();
+  await supabase.auth.signOut();
+}
+</file>
+
+<file path="src/app/actions/notes.ts">
+'use server';
+
+import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
+import { prisma } from '@/lib/prisma';
+import { requireUser } from '@/lib/current-user';
+import type { NoteType } from '@prisma/client';
+
+export async function createNote(formData: FormData) {
+  const user = await requireUser();
+
+  const title = String(formData.get('title') ?? '').trim();
+  const content = String(formData.get('content') ?? '').trim();
+  const type = (String(formData.get('type') ?? 'NOTE') as NoteType) ?? 'NOTE';
+  const projectId = String(formData.get('projectId') ?? '') || null;
+  const location = String(formData.get('location') ?? '').trim() || null;
+  const topicNamesRaw = String(formData.get('topics') ?? '');
+
+  if (!title) throw new Error('Judul wajib diisi.');
+
+  const topicNames = topicNamesRaw
+    .split(',')
+    .map((t) => t.trim())
+    .filter(Boolean);
+
+  const note = await prisma.note.create({
+    data: {
+      userId: user.id,
+      title,
+      content,
+      type,
+      projectId,
+      spatiotemporalLocation: location,
+      spatiotemporalTime: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
+      interactions: { create: { type: 'CREATE', weight: 1.0 } },
+    },
+  });
+
+  for (const name of topicNames) {
+    const topic = await prisma.topic.upsert({
+      where: { userId_name: { userId: user.id, name } },
+      update: {},
+      create: { userId: user.id, name },
+    });
+    await prisma.noteTopic.create({ data: { noteId: note.id, topicId: topic.id } });
+  }
+
+  await prisma.memoryScore.create({
+    data: { noteId: note.id, memoryBuoyancy: 1, preservationValue: 0.3, folder: 'LAST_FOCUS' },
+  });
+
+  revalidatePath('/');
+  revalidatePath('/notes');
+  redirect(`/notes/${note.id}`);
+}
+
+export async function updateNote(noteId: string, formData: FormData) {
+  const user = await requireUser();
+
+  const title = String(formData.get('title') ?? '').trim();
+  const content = String(formData.get('content') ?? '').trim();
+  const quality = Number(formData.get('quality') ?? 0.5);
+  const coverage = Number(formData.get('coverage') ?? 0.5);
+
+  const existing = await prisma.note.findFirstOrThrow({ where: { id: noteId, userId: user.id } });
+
+  await prisma.note.update({
+    where: { id: noteId },
+    data: {
+      title,
+      content,
+      quality,
+      coverage,
+      userInvestment: Math.min(1, existing.userInvestment + 0.1),
+      interactions: { create: { type: 'EDIT', weight: 0.8 } },
+    },
+  });
+
+  revalidatePath(`/notes/${noteId}`);
+  revalidatePath('/notes');
+  revalidatePath('/');
+}
+
+export async function logNoteView(noteId: string) {
+  const user = await requireUser();
+  await prisma.note.findFirstOrThrow({ where: { id: noteId, userId: user.id } });
+  await prisma.interaction.create({ data: { noteId, type: 'VIEW', weight: 0.2 } });
+}
+
+export async function deleteNote(noteId: string) {
+  const user = await requireUser();
+  await prisma.note.deleteMany({ where: { id: noteId, userId: user.id } });
+  revalidatePath('/notes');
+  revalidatePath('/');
+  redirect('/notes');
+}
+</file>
+
+<file path="src/app/actions/pimo.ts">
+'use server';
+
+import { revalidatePath } from 'next/cache';
+import { prisma } from '@/lib/prisma';
+import { requireUser } from '@/lib/current-user';
+
+// ── Projects ────────────────────────────────────────────────────────────
+
+export async function createProject(formData: FormData) {
+  const user = await requireUser();
+  const name = String(formData.get('name') ?? '').trim();
+  const description = String(formData.get('description') ?? '').trim() || null;
+  if (!name) throw new Error('Nama proyek wajib diisi.');
+
+  await prisma.project.create({ data: { userId: user.id, name, description } });
+  revalidatePath('/projects');
+}
+
+export async function setProjectStatus(projectId: string, status: 'ACTIVE' | 'ARCHIVED' | 'COMPLETED') {
+  const user = await requireUser();
+  await prisma.project.updateMany({ where: { id: projectId, userId: user.id }, data: { status } });
+  revalidatePath('/projects');
+}
+
+// ── Topics ──────────────────────────────────────────────────────────────
+
+export async function createTopic(formData: FormData) {
+  const user = await requireUser();
+  const name = String(formData.get('name') ?? '').trim();
+  const isHot = formData.get('isHot') === 'on';
+  if (!name) throw new Error('Nama topik wajib diisi.');
+
+  await prisma.topic.upsert({
+    where: { userId_name: { userId: user.id, name } },
+    update: { isHot },
+    create: { userId: user.id, name, isHot },
+  });
+  revalidatePath('/topics');
+  revalidatePath('/');
+}
+
+export async function toggleHotTopic(topicId: string, isHot: boolean) {
+  const user = await requireUser();
+  await prisma.topic.updateMany({ where: { id: topicId, userId: user.id }, data: { isHot } });
+  revalidatePath('/topics');
+  revalidatePath('/');
+}
+
+// ── People ──────────────────────────────────────────────────────────────
+
+export async function createPerson(formData: FormData) {
+  const user = await requireUser();
+  const name = String(formData.get('name') ?? '').trim();
+  const relation = String(formData.get('relation') ?? '').trim() || null;
+  const importance = Math.min(5, Math.max(1, Number(formData.get('importance') ?? 1)));
+  if (!name) throw new Error('Nama orang wajib diisi.');
+
+  await prisma.person.create({ data: { userId: user.id, name, relation, importance } });
+  revalidatePath('/people');
+}
+
+// ── Events ──────────────────────────────────────────────────────────────
+
+export async function createEvent(formData: FormData) {
+  const user = await requireUser();
+  const title = String(formData.get('title') ?? '').trim();
+  const startAt = String(formData.get('startAt') ?? '');
+  const location = String(formData.get('location') ?? '').trim() || null;
+  if (!title || !startAt) throw new Error('Judul dan waktu wajib diisi.');
+
+  await prisma.event.create({ data: { userId: user.id, title, startAt: new Date(startAt), location } });
+  revalidatePath('/events');
+}
+</file>
+
+<file path="src/app/actions/recall.ts">
+'use server';
+
+import { revalidatePath } from 'next/cache';
+import { prisma } from '@/lib/prisma';
+import { requireUser } from '@/lib/current-user';
+import { addDays, nextInterval } from '@/lib/memory/recall';
+
+/** Creates a due-now recall session for a note (used from the note editor). */
+export async function scheduleRecall(noteId: string, question: string, correctAnswer: string) {
+  const user = await requireUser();
+  await prisma.note.findFirstOrThrow({ where: { id: noteId, userId: user.id } });
+
+  await prisma.activeRecallSession.create({
+    data: {
+      noteId,
+      question,
+      correctAnswer,
+      intervalDays: 1,
+      nextReviewAt: new Date(),
+    },
+  });
+  revalidatePath('/recall');
+}
+
+/** Grades a free-recall / recognition answer and reschedules per SM-2-lite. */
+export async function submitRecallAnswer(sessionId: string, userAnswer: string, isCorrect: boolean) {
+  const session = await prisma.activeRecallSession.findUniqueOrThrow({ where: { id: sessionId } });
+  const interval = nextInterval(session.intervalDays, isCorrect);
+
+  await prisma.activeRecallSession.update({
+    where: { id: sessionId },
+    data: {
+      userAnswer,
+      isCorrect,
+      reviewedAt: new Date(),
+      intervalDays: interval,
+      nextReviewAt: addDays(new Date(), interval),
+    },
+  });
+
+  // A successful recall is itself a strong interaction signal for MB.
+  await prisma.interaction.create({
+    data: { noteId: session.noteId, type: isCorrect ? 'COMMENT' : 'VIEW', weight: isCorrect ? 0.9 : 0.2 },
+  });
+
+  revalidatePath('/recall');
+}
+</file>
+
+<file path="src/app/actions/tasks.ts">
+'use server';
+
+import { revalidatePath } from 'next/cache';
+import { prisma } from '@/lib/prisma';
+import { requireUser } from '@/lib/current-user';
+import type { TaskStatus } from '@prisma/client';
+
+/**
+ * "Benign friction" capture: when the user types a vague task, we still
+ * require an explicit spatiotemporal negotiation (dueAt / location) before
+ * it's saved — a small, deliberate confirmation step rather than silently
+ * autopiloting a guess, per the Kairotask pattern in the research doc.
+ */
+export async function createTask(formData: FormData) {
+  const user = await requireUser();
+  const title = String(formData.get('title') ?? '').trim();
+  const dueAt = String(formData.get('dueAt') ?? '');
+  const location = String(formData.get('location') ?? '').trim() || null;
+  const projectId = String(formData.get('projectId') ?? '') || null;
+  if (!title) throw new Error('Judul tugas wajib diisi.');
+
+  await prisma.task.create({
+    data: {
+      userId: user.id,
+      title,
+      projectId,
+      location,
+      dueAt: dueAt ? new Date(dueAt) : null,
+    },
+  });
+  revalidatePath('/tasks');
+  revalidatePath('/');
+}
+
+export async function setTaskStatus(taskId: string, status: TaskStatus) {
+  const user = await requireUser();
+  await prisma.task.updateMany({ where: { id: taskId, userId: user.id }, data: { status } });
+  revalidatePath('/tasks');
+  revalidatePath('/');
+}
+</file>
+
+<file path="src/app/api/auth/callback/route.ts">
+import { NextResponse, type NextRequest } from 'next/server';
+import { createClient } from '@/lib/supabase/server';
+
+/** Exchanges the magic-link code for a session cookie, then redirects home. */
+export async function GET(request: NextRequest) {
+  const { searchParams, origin } = new URL(request.url);
+  const code = searchParams.get('code');
+
+  if (code) {
+    const supabase = createClient();
+    await supabase.auth.exchangeCodeForSession(code);
+  }
+
+  return NextResponse.redirect(`${origin}/`);
+}
+</file>
+
+<file path="src/app/api/recompute-scores/route.ts">
+import { NextResponse, type NextRequest } from 'next/server';
+import { prisma } from '@/lib/prisma';
+import { computeMemoryBuoyancy, computePreservationValue, categorizeIntoFolder } from '@/lib/memory/scoring';
+
+/**
+ * Nightly recomputation of Memory Buoyancy / Preservation Value / IFI folder
+ * for every note. Call this from a scheduler (Vercel Cron entry in
+ * vercel.json points here) with header `Authorization: Bearer $CRON_SECRET`.
+ */
+export async function POST(request: NextRequest) {
+  const auth = request.headers.get('authorization');
+  if (auth !== `Bearer ${process.env.CRON_SECRET}`) {
+    return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+  }
+
+  const notes = await prisma.note.findMany({
+    include: {
+      interactions: { select: { type: true, createdAt: true } },
+      topics: { include: { topic: true } },
+      people: { include: { person: true } },
+    },
+  });
+
+  const now = new Date();
+  let updated = 0;
+
+  for (const note of notes) {
+    const mb = computeMemoryBuoyancy(note.interactions, now);
+    const { PV } = computePreservationValue({
+      note,
+      topics: note.topics,
+      people: note.people,
+      projectLinked: Boolean(note.projectId),
+      totalInteractionCount: note.interactions.length,
+    });
+
+    const lastInteractionAt = note.interactions.length
+      ? note.interactions.reduce((latest, i) => (i.createdAt > latest ? i.createdAt : latest), note.interactions[0].createdAt)
+      : null;
+
+    const folder = categorizeIntoFolder({
+      memoryBuoyancy: mb,
+      preservationValue: PV,
+      lastInteractionAt,
+      hasHotTopic: note.topics.some((t) => t.topic.isHot),
+      now,
+    });
+
+    await prisma.memoryScore.upsert({
+      where: { noteId: note.id },
+      update: { memoryBuoyancy: mb, preservationValue: PV, folder, computedAt: now },
+      create: { noteId: note.id, memoryBuoyancy: mb, preservationValue: PV, folder, computedAt: now },
+    });
+    updated += 1;
+  }
+
+  return NextResponse.json({ ok: true, updated });
+}
+</file>
+
+<file path="src/app/globals.css">
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #f7f5f0;
+  --surface: #ffffff;
+  --ink: #211d17;
+  --ink-soft: #5c564a;
+  --line: #ddd6c7;
+  --accent: #a2492a;
+  --accent-soft: #e8d9c8;
+  --accent2: #2f5d4f;
+  --accent2-soft: #dbe6e0;
+  --font-display: 'Fraunces', Georgia, serif;
+  --font-body: 'Inter', -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+  color-scheme: light;
+}
+
+.dark {
+  --bg: #16140f;
+  --surface: #201d17;
+  --ink: #f1ebdd;
+  --ink-soft: #b7ae9a;
+  --line: #3a3527;
+  --accent: #e0916d;
+  --accent-soft: #3a2a1f;
+  --accent2: #7fb8a3;
+  --accent2-soft: #22322b;
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not(.light) {
+    --bg: #16140f;
+    --surface: #201d17;
+    --ink: #f1ebdd;
+    --ink-soft: #b7ae9a;
+    --line: #3a3527;
+    --accent: #e0916d;
+    --accent-soft: #3a2a1f;
+    --accent2: #7fb8a3;
+    --accent2-soft: #22322b;
+    color-scheme: dark;
+  }
+}
+
+* {
+  border-color: var(--line);
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+}
+
+::selection {
+  background: var(--accent-soft);
+  color: var(--ink);
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+</file>
+
+<file path="src/app/layout.tsx">
+import type { Metadata } from 'next';
+import './globals.css';
+
+export const metadata: Metadata = {
+  title: 'Second Brain',
+  description: 'Personal knowledge base dengan augmentasi memori AI — private.',
+  robots: { index: false, follow: false },
+};
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="id">
+      <head>
+        <link
+          rel="stylesheet"
+          href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap"
+        />
+      </head>
+      <body className="font-body min-h-screen antialiased">{children}</body>
+    </html>
+  );
+}
+</file>
+
+<file path="src/components/pkm/empty-state.tsx">
+import type { LucideIcon } from 'lucide-react';
+
+export function EmptyState({
+  icon: Icon,
+  title,
+  description,
+}: {
+  icon: LucideIcon;
+  title: string;
+  description: string;
+}) {
+  return (
+    <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-line px-6 py-12 text-center">
+      <Icon className="mb-3 text-ink-soft" size={28} strokeWidth={1.5} />
+      <p className="font-medium text-ink">{title}</p>
+      <p className="mt-1 max-w-xs text-sm text-ink-soft">{description}</p>
+    </div>
+  );
+}
+</file>
+
+<file path="src/components/pkm/note-card.tsx">
+import Link from 'next/link';
+import type { MemoryFolder, Note, NoteTopic, Topic, MemoryScore } from '@prisma/client';
+import { Badge } from '@/components/ui/badge';
+import { ScorePill } from './score-pill';
+import { formatRelative } from '@/lib/utils';
+
+type NoteWithRelations = Note & {
+  topics: (NoteTopic & { topic: Topic })[];
+  memoryScore: MemoryScore | null;
+};
+
+const TYPE_TONE: Record<string, 'accent' | 'accent2' | 'neutral'> = {
+  NOTE: 'neutral',
+  TASK: 'accent',
+  IDEA: 'accent2',
+  INSIGHT: 'accent2',
+};
+
+export function NoteCard({ note }: { note: NoteWithRelations }) {
+  return (
+    <Link
+      href={`/notes/${note.id}`}
+      className="block rounded-xl border border-line bg-surface p-4 transition-colors hover:border-accent/50"
+    >
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <Badge tone={TYPE_TONE[note.type]}>{note.type}</Badge>
+        <span className="text-xs text-ink-soft">{formatRelative(new Date(note.updatedAt))}</span>
+      </div>
+      <h3 className="mb-1 font-display text-base font-semibold text-ink line-clamp-1">{note.title}</h3>
+      <p className="mb-3 text-sm text-ink-soft line-clamp-2">{note.content || 'Tidak ada isi.'}</p>
+
+      {note.topics.length > 0 && (
+        <div className="mb-3 flex flex-wrap gap-1.5">
+          {note.topics.map(({ topic }) => (
+            <span key={topic.id} className="rounded-full bg-bg px-2 py-0.5 text-[11px] text-ink-soft">
+              #{topic.name}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {note.memoryScore && (
+        <div className="flex flex-wrap gap-x-4 gap-y-1.5 border-t border-line pt-3">
+          <ScorePill label="MB" value={note.memoryScore.memoryBuoyancy} tone="accent" />
+          <ScorePill label="PV" value={note.memoryScore.preservationValue} tone="accent2" />
+        </div>
+      )}
+    </Link>
+  );
+}
+
+export const FOLDER_LABEL: Record<MemoryFolder, string> = {
+  LAST_FOCUS: '♦ Last Focus ♦',
+  HOT_TOPICS: '♦ Hot Topics ♦',
+  ACTIVE: 'Aktif',
+  FORGOTTEN: '♦ Forgotten ♦',
+};
+</file>
+
+<file path="src/components/pkm/recall-card.tsx">
+'use client';
+
+import { useState, useTransition } from 'react';
+import { submitRecallAnswer } from '@/app/actions/recall';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+
+interface RecallCardProps {
+  sessionId: string;
+  question: string;
+  correctAnswer: string;
+  noteTitle: string;
+}
+
+export function RecallCard({ sessionId, question, correctAnswer, noteTitle }: RecallCardProps) {
+  const [answer, setAnswer] = useState('');
+  const [revealed, setRevealed] = useState(false);
+  const [done, setDone] = useState(false);
+  const [pending, startTransition] = useTransition();
+
+  if (done) {
+    return (
+      <Card className="flex items-center justify-between opacity-60">
+        <span className="text-sm text-ink">{question}</span>
+        <Badge tone="accent2">Terjadwal ulang</Badge>
+      </Card>
+    );
+  }
+
+  function grade(correct: boolean) {
+    startTransition(async () => {
+      await submitRecallAnswer(sessionId, answer, correct);
+      setDone(true);
+    });
+  }
+
+  return (
+    <Card>
+      <p className="mb-1 text-xs uppercase tracking-wide text-ink-soft">{noteTitle}</p>
+      <p className="mb-3 font-display text-base font-medium text-ink">{question}</p>
+
+      {!revealed ? (
+        <div className="space-y-3">
+          <Input
+            value={answer}
+            onChange={(e) => setAnswer(e.target.value)}
+            placeholder="Tulis jawabanmu (free recall)…"
+          />
+          <Button size="sm" onClick={() => setRevealed(true)}>
+            Lihat jawaban
+          </Button>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          <div className="rounded-lg bg-accent-soft/60 px-3 py-2 text-sm text-ink">
+            <span className="font-medium">Jawaban benar:</span> {correctAnswer}
+          </div>
+          {answer && (
+            <div className="rounded-lg bg-bg px-3 py-2 text-sm text-ink-soft">
+              <span className="font-medium text-ink">Jawabanmu:</span> {answer}
+            </div>
+          )}
+          <div className="flex gap-2">
+            <Button size="sm" variant="secondary" disabled={pending} onClick={() => grade(true)}>
+              Aku benar
+            </Button>
+            <Button size="sm" variant="ghost" disabled={pending} onClick={() => grade(false)}>
+              Aku salah
+            </Button>
+          </div>
+        </div>
+      )}
+    </Card>
+  );
+}
+</file>
+
+<file path="src/components/pkm/score-pill.tsx">
+import { cn } from '@/lib/utils';
+
+export function ScorePill({ label, value, tone }: { label: string; value: number; tone: 'accent' | 'accent2' }) {
+  const pct = Math.round(value * 100);
+  return (
+    <div className="flex items-center gap-1.5 text-xs">
+      <span className="text-ink-soft">{label}</span>
+      <div className="h-1.5 w-14 overflow-hidden rounded-full bg-line/60">
+        <div
+          className={cn('h-full rounded-full', tone === 'accent' ? 'bg-accent' : 'bg-accent2')}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+      <span className="tabular text-ink-soft">{pct}%</span>
+    </div>
+  );
+}
+</file>
+
+<file path="src/components/pkm/sidebar.tsx">
+'use client';
+
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import {
+  LayoutDashboard,
+  NotebookText,
+  FolderKanban,
+  Hash,
+  Users,
+  CalendarDays,
+  ListChecks,
+  BrainCircuit,
+} from 'lucide-react';
+import { cn } from '@/lib/utils';
+
+const NAV = [
+  { href: '/', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/notes', label: 'Catatan', icon: NotebookText },
+  { href: '/recall', label: 'Active Recall', icon: BrainCircuit },
+  { href: '/tasks', label: 'Tugas', icon: ListChecks },
+  { href: '/projects', label: 'Proyek', icon: FolderKanban },
+  { href: '/topics', label: 'Topik', icon: Hash },
+  { href: '/people', label: 'Orang', icon: Users },
+  { href: '/events', label: 'Acara', icon: CalendarDays },
+];
+
+export function Sidebar() {
+  const pathname = usePathname();
+
+  return (
+    <aside className="hidden md:flex w-60 shrink-0 flex-col border-r border-line bg-surface px-4 py-6">
+      <div className="mb-8 flex items-center gap-2 px-2">
+        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent text-white font-display text-sm">
+          ✺
+        </div>
+        <span className="font-display text-base font-semibold text-ink">Second Brain</span>
+      </div>
+
+      <nav className="flex flex-1 flex-col gap-1">
+        {NAV.map(({ href, label, icon: Icon }) => {
+          const active = href === '/' ? pathname === '/' : pathname.startsWith(href);
+          return (
+            <Link
+              key={href}
+              href={href}
+              className={cn(
+                'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+                active ? 'bg-accent-soft text-accent' : 'text-ink-soft hover:bg-accent-soft/50 hover:text-ink'
+              )}
+            >
+              <Icon size={17} strokeWidth={2} />
+              {label}
+            </Link>
+          );
+        })}
+      </nav>
+
+      <div className="rounded-lg border border-line px-3 py-2.5 text-xs text-ink-soft">
+        Ruang privat — hanya kamu yang bisa masuk.
+      </div>
+    </aside>
+  );
+}
+</file>
+
+<file path="src/components/pkm/topbar.tsx">
+import Link from 'next/link';
+import { LogOut, Plus } from 'lucide-react';
+import { signOut } from '@/app/actions/auth';
+import { Button } from '@/components/ui/button';
+
+export function TopBar({ title, email }: { title: string; email?: string | null }) {
+  return (
+    <div className="flex items-center justify-between border-b border-line bg-surface/70 px-5 py-4 backdrop-blur">
+      <div>
+        <h1 className="font-display text-xl font-semibold text-ink">{title}</h1>
+        {email && <p className="text-xs text-ink-soft">{email}</p>}
+      </div>
+      <div className="flex items-center gap-2">
+        <Link href="/notes?new=1">
+          <Button size="sm">
+            <Plus size={15} /> Catatan baru
+          </Button>
+        </Link>
+        <form action={signOut}>
+          <Button size="sm" variant="ghost" type="submit" title="Keluar">
+            <LogOut size={15} />
+          </Button>
+        </form>
+      </div>
+    </div>
+  );
+}
+</file>
+
+<file path="src/components/ui/badge.tsx">
+import type { HTMLAttributes } from 'react';
+import { cn } from '@/lib/utils';
+
+type Tone = 'neutral' | 'accent' | 'accent2' | 'warning' | 'danger';
+
+const tones: Record<Tone, string> = {
+  neutral: 'bg-line/60 text-ink-soft',
+  accent: 'bg-accent-soft text-accent',
+  accent2: 'bg-accent2-soft text-accent2',
+  warning: 'bg-amber-500/15 text-amber-600 dark:text-amber-400',
+  danger: 'bg-red-500/15 text-red-600 dark:text-red-400',
+};
+
+export function Badge({
+  tone = 'neutral',
+  className,
+  ...props
+}: HTMLAttributes<HTMLSpanElement> & { tone?: Tone }) {
+  return (
+    <span
+      className={cn(
+        'inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium',
+        tones[tone],
+        className
+      )}
+      {...props}
+    />
+  );
+}
+</file>
+
+<file path="src/components/ui/button.tsx">
+import { forwardRef, type ButtonHTMLAttributes } from 'react';
+import { cn } from '@/lib/utils';
+
+type Variant = 'primary' | 'secondary' | 'ghost' | 'danger';
+type Size = 'sm' | 'md';
+
+interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+  variant?: Variant;
+  size?: Size;
+}
+
+const variants: Record<Variant, string> = {
+  primary: 'bg-accent text-white hover:opacity-90',
+  secondary: 'bg-accent-soft text-ink hover:opacity-90',
+  ghost: 'bg-transparent text-ink hover:bg-accent-soft/60',
+  danger: 'bg-red-600 text-white hover:opacity-90',
+};
+
+const sizes: Record<Size, string> = {
+  sm: 'text-sm px-3 py-1.5 rounded-lg',
+  md: 'text-sm px-4 py-2.5 rounded-xl',
+};
+
+export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
+  ({ className, variant = 'primary', size = 'md', ...props }, ref) => (
+    <button
+      ref={ref}
+      className={cn(
+        'inline-flex items-center justify-center gap-2 font-medium transition-colors disabled:opacity-50 disabled:pointer-events-none',
+        variants[variant],
+        sizes[size],
+        className
+      )}
+      {...props}
+    />
+  )
+);
+Button.displayName = 'Button';
+</file>
+
+<file path="src/components/ui/card.tsx">
+import type { HTMLAttributes } from 'react';
+import { cn } from '@/lib/utils';
+
+export function Card({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return (
+    <div
+      className={cn('rounded-card border border-line bg-surface p-5', className)}
+      {...props}
+    />
+  );
+}
+
+export function CardTitle({ className, ...props }: HTMLAttributes<HTMLHeadingElement>) {
+  return <h3 className={cn('font-display text-lg font-semibold text-ink', className)} {...props} />;
+}
+
+export function CardDescription({ className, ...props }: HTMLAttributes<HTMLParagraphElement>) {
+  return <p className={cn('text-sm text-ink-soft leading-relaxed', className)} {...props} />;
+}
+</file>
+
+<file path="src/components/ui/input.tsx">
+import { forwardRef, type InputHTMLAttributes, type TextareaHTMLAttributes } from 'react';
+import { cn } from '@/lib/utils';
+
+export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(
+  ({ className, ...props }, ref) => (
+    <input
+      ref={ref}
+      className={cn(
+        'w-full rounded-lg border border-line bg-bg px-3 py-2 text-sm text-ink placeholder:text-ink-soft/70 outline-none focus:border-accent focus:ring-1 focus:ring-accent',
+        className
+      )}
+      {...props}
+    />
+  )
+);
+Input.displayName = 'Input';
+
+export const Textarea = forwardRef<HTMLTextAreaElement, TextareaHTMLAttributes<HTMLTextAreaElement>>(
+  ({ className, ...props }, ref) => (
+    <textarea
+      ref={ref}
+      className={cn(
+        'w-full rounded-lg border border-line bg-bg px-3 py-2 text-sm text-ink placeholder:text-ink-soft/70 outline-none focus:border-accent focus:ring-1 focus:ring-accent resize-y',
+        className
+      )}
+      {...props}
+    />
+  )
+);
+Textarea.displayName = 'Textarea';
+
+export function Label({ className, ...props }: React.LabelHTMLAttributes<HTMLLabelElement>) {
+  return (
+    <label
+      className={cn('block text-xs font-medium uppercase tracking-wide text-ink-soft mb-1.5', className)}
+      {...props}
+    />
+  );
+}
+
+export function Select({ className, ...props }: React.SelectHTMLAttributes<HTMLSelectElement>) {
+  return (
+    <select
+      className={cn(
+        'w-full rounded-lg border border-line bg-bg px-3 py-2 text-sm text-ink outline-none focus:border-accent focus:ring-1 focus:ring-accent',
+        className
+      )}
+      {...props}
+    />
+  );
+}
+</file>
+
+<file path="src/lib/memory/recall.ts">
+/**
+ * SM-2-lite spaced repetition scheduler for the Active Recall loop
+ * (H+1 / H+7 / H+30-style intervals described in the research doc).
+ */
+export function nextInterval(previousIntervalDays: number, wasCorrect: boolean): number {
+  if (!wasCorrect) return 1; // failed recall — reset to daily
+  if (previousIntervalDays <= 1) return 7;
+  if (previousIntervalDays <= 7) return 30;
+  if (previousIntervalDays <= 30) return 90;
+  return Math.round(previousIntervalDays * 2); // keep doubling beyond that
+}
+
+export function addDays(date: Date, days: number): Date {
+  const d = new Date(date);
+  d.setDate(d.getDate() + days);
+  return d;
+}
+</file>
+
+<file path="src/lib/memory/scoring.ts">
+import type { Interaction, InteractionType, Note, NoteTopic, NotePerson, Person, Topic } from '@prisma/client';
+
+/**
+ * Memory Buoyancy (MB) and Preservation Value (PV), ported from the
+ * ForgetIT / cSpaces research this app implements:
+ *
+ *   MB_raw = Σ w_i · e^(-λ·Δt_i)         (decayed sum of weighted interactions)
+ *   MB     = 1 - e^(-MB_raw)              (squash into [0, 1])
+ *
+ *   PV = 0.25·UI + 0.20·G + 0.15·SG + 0.15·P + 0.15·C + 0.10·Q
+ */
+
+export const INTERACTION_WEIGHTS: Record<InteractionType, number> = {
+  CREATE: 1.0,
+  EDIT: 0.8,
+  COMMENT: 0.9,
+  VIEW: 0.2,
+};
+
+/** Decay constant λ. Higher = faster forgetting. 0.1 ≈ half-life of ~7 days. */
+export const DECAY_LAMBDA = 0.1;
+
+export function computeMemoryBuoyancy(interactions: Pick<Interaction, 'type' | 'createdAt'>[], now: Date = new Date()): number {
+  if (interactions.length === 0) return 0;
+
+  const raw = interactions.reduce((sum, i) => {
+    const deltaDays = Math.max(0, (now.getTime() - i.createdAt.getTime()) / 86_400_000);
+    const w = INTERACTION_WEIGHTS[i.type];
+    return sum + w * Math.exp(-DECAY_LAMBDA * deltaDays);
+  }, 0);
+
+  return 1 - Math.exp(-raw);
+}
+
+/** Clamp a value into [0, 1]. */
+function clamp01(x: number) {
+  return Math.min(1, Math.max(0, x));
+}
+
+export interface PreservationValueInput {
+  note: Pick<Note, 'userInvestment' | 'quality' | 'coverage'>;
+  topics: (NoteTopic & { topic: Topic })[];
+  people: (NotePerson & { person: Person })[];
+  projectLinked: boolean;
+  totalInteractionCount: number;
+}
+
+export interface PreservationValueBreakdown {
+  UI: number;
+  G: number;
+  SG: number;
+  P: number;
+  C: number;
+  Q: number;
+  PV: number;
+}
+
+export function computePreservationValue(input: PreservationValueInput): PreservationValueBreakdown {
+  const UI = clamp01(input.note.userInvestment);
+
+  // Gravity: how connected this note is in the knowledge graph — topics,
+  // people and a project link all count as edges.
+  const edgeCount = input.topics.length + input.people.length + (input.projectLinked ? 1 : 0);
+  const G = clamp01(edgeCount / 5); // 5 edges ≈ fully "gravitationally" embedded
+
+  // Social Graph: weighted by how important the linked people are (1–5 each).
+  const socialWeight = input.people.reduce((sum, np) => sum + np.person.importance, 0);
+  const SG = clamp01(socialWeight / 10); // two very-important people ≈ max
+
+  // Popularity: normalized total interaction count across this note's life.
+  const P = clamp01(input.totalInteractionCount / 20);
+
+  const C = clamp01(input.note.coverage);
+  const Q = clamp01(input.note.quality);
+
+  const PV = 0.25 * UI + 0.2 * G + 0.15 * SG + 0.15 * P + 0.15 * C + 0.1 * Q;
+
+  return { UI, G, SG, P, C, Q, PV: clamp01(PV) };
+}
+
+export type MemoryFolderBucket = 'LAST_FOCUS' | 'HOT_TOPICS' | 'ACTIVE' | 'FORGOTTEN';
+
+export interface FolderInput {
+  memoryBuoyancy: number;
+  preservationValue: number;
+  lastInteractionAt: Date | null;
+  hasHotTopic: boolean;
+  now?: Date;
+}
+
+/**
+ * Intelligent Folder Injection: assigns a note to exactly one bucket.
+ * Priority order matches the research doc: recent+buoyant first, then hot
+ * topics, then the forgotten-but-not-deleted bucket, else plain active.
+ */
+export function categorizeIntoFolder(input: FolderInput): MemoryFolderBucket {
+  const now = input.now ?? new Date();
+  const daysSinceLastTouch = input.lastInteractionAt
+    ? (now.getTime() - input.lastInteractionAt.getTime()) / 86_400_000
+    : Infinity;
+
+  if (daysSinceLastTouch <= 3 && input.memoryBuoyancy >= 0.7) return 'LAST_FOCUS';
+  if (input.hasHotTopic) return 'HOT_TOPICS';
+  if (input.memoryBuoyancy < 0.3 && input.preservationValue < 0.6) return 'FORGOTTEN';
+  return 'ACTIVE';
+}
+</file>
+
+<file path="src/lib/supabase/client.ts">
+import { createBrowserClient } from '@supabase/ssr';
+
+/** Supabase client for use in Client Components (e.g. the login form). */
+export function createClient() {
+  return createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
+}
+</file>
+
+<file path="src/lib/supabase/env.ts">
+/**
+ * Guards for the Supabase auth environment.
+ *
+ * .env is copied from .env.example, which ships placeholder values
+ * (`https://YOUR-PROJECT-REF.supabase.co`, `YOUR-ANON-KEY`). Running with
+ * those makes every auth call fail DNS resolution and surface as an opaque
+ * "fetch failed" on the login form — these helpers translate that into an
+ * actionable message instead.
+ */
+
+const PLACEHOLDER_MARKERS = ['your-project-ref', 'your-anon-key', 'your-service-role-key'];
+
+function isPlaceholder(value: string): boolean {
+  const lower = value.toLowerCase();
+  return PLACEHOLDER_MARKERS.some((marker) => lower.includes(marker));
+}
+
+/**
+ * Returns null when the Supabase env is usable, otherwise an Indonesian,
+ * user-facing description of what to fix in `.env`.
+ */
+export function supabaseEnvProblem(): string | null {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim();
+
+  if (!url || !anonKey) {
+    return 'Konfigurasi Supabase belum lengkap: set NEXT_PUBLIC_SUPABASE_URL dan NEXT_PUBLIC_SUPABASE_ANON_KEY di .env (Supabase → Settings → API), lalu restart dev server.';
+  }
+
+  if (isPlaceholder(url) || isPlaceholder(anonKey)) {
+    return 'Nilai Supabase di .env masih placeholder (YOUR-PROJECT-REF / YOUR-ANON-KEY). Ganti dengan Project URL dan anon key asli dari Supabase → Settings → API, lalu restart dev server.';
+  }
+
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== 'https:' && parsed.hostname !== 'localhost' && parsed.hostname !== '127.0.0.1') {
+      return `NEXT_PUBLIC_SUPABASE_URL harus memakai https (nilai sekarang: ${url}).`;
+    }
+  } catch {
+    return `NEXT_PUBLIC_SUPABASE_URL bukan URL yang valid: ${url}`;
+  }
+
+  return null;
+}
+
+/**
+ * Normalizes errors from supabase-js into a message safe to show on the
+ * login form. Network failures ("fetch failed", DNS, ECONNREFUSED) mean the
+ * request never reached Supabase, so we point at the config instead of
+ * echoing the raw undici message.
+ */
+export function describeAuthError(error: unknown): string {
+  const message =
+    error instanceof Error
+      ? error.message
+      : typeof error === 'object' && error !== null && 'message' in error
+        ? String((error as { message: unknown }).message)
+        : // supabase-js's own _getErrorMessage checks `msg` before `message`.
+          typeof error === 'object' && error !== null && 'msg' in error
+          ? String((error as { msg: unknown }).msg)
+          : JSON.stringify(error);
+
+  if (/fetch failed|failed to fetch|network|enotfound|econnrefused|etimedout|getaddrinfo/i.test(message)) {
+    return 'Tidak bisa terhubung ke server Supabase. Periksa NEXT_PUBLIC_SUPABASE_URL di .env (harus Project URL asli, bukan placeholder) lalu coba lagi.';
+  }
+
+  return message;
+}
+</file>
+
+<file path="src/lib/supabase/server.ts">
+import { createServerClient, type CookieOptions } from '@supabase/ssr';
+import { cookies } from 'next/headers';
+
+/**
+ * Supabase client for use in Server Components, Server Actions and Route
+ * Handlers. Reads/writes the auth cookie via Next's cookies() store.
+ */
+export function createClient() {
+  const cookieStore = cookies();
+
+  return createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        get(name: string) {
+          return cookieStore.get(name)?.value;
+        },
+        set(name: string, value: string, options: CookieOptions) {
+          try {
+            cookieStore.set({ name, value, ...options });
+          } catch {
+            // Called from a Server Component — safe to ignore because
+            // middleware.ts refreshes the session on every request.
+          }
+        },
+        remove(name: string, options: CookieOptions) {
+          try {
+            cookieStore.set({ name, value: '', ...options });
+          } catch {
+            // See note above.
+          }
+        },
+      },
+    }
+  );
+}
+
+/** Currently signed-in user, or null. Does NOT enforce the allowed-email gate —
+ *  that happens in middleware.ts before any page renders. */
+export async function getUser() {
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  return user;
+}
+</file>
+
+<file path="src/lib/current-user.ts">
+import { redirect } from 'next/navigation';
+import { prisma } from '@/lib/prisma';
+import { getUser } from '@/lib/supabase/server';
+
+/**
+ * Resolves the signed-in Supabase user to the app's Prisma `User` row,
+ * creating it on first sign-in (upsert keeps this idempotent). Since
+ * middleware.ts already blocks anyone but ALLOWED_EMAIL, whoever reaches
+ * here is you.
+ */
+export async function requireUser() {
+  const authUser = await getUser();
+  if (!authUser) redirect('/login');
+
+  const user = await prisma.user.upsert({
+    where: { id: authUser.id },
+    update: { email: authUser.email ?? undefined },
+    create: {
+      id: authUser.id,
+      email: authUser.email ?? 'unknown@local',
+      name: authUser.user_metadata?.full_name ?? null,
+    },
+  });
+
+  return user;
+}
+</file>
+
+<file path="src/lib/prisma.ts">
+import { PrismaClient } from '@prisma/client';
+
+// Standard Next.js singleton pattern so hot-reload in dev doesn't exhaust
+// the Supabase connection pool with a new PrismaClient per request.
+const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
+
+export const prisma =
+  globalForPrisma.prisma ??
+  new PrismaClient({
+    log: process.env.NODE_ENV === 'development' ? ['warn', 'error'] : ['error'],
+  });
+
+if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
+</file>
+
+<file path="src/lib/utils.ts">
+import { clsx, type ClassValue } from 'clsx';
+import { twMerge } from 'tailwind-merge';
+
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
+}
+
+export function formatRelative(date: Date, now: Date = new Date()): string {
+  const diffMs = now.getTime() - date.getTime();
+  const diffMin = Math.round(diffMs / 60_000);
+  if (diffMin < 1) return 'baru saja';
+  if (diffMin < 60) return `${diffMin} menit lalu`;
+  const diffHr = Math.round(diffMin / 60);
+  if (diffHr < 24) return `${diffHr} jam lalu`;
+  const diffDay = Math.round(diffHr / 24);
+  if (diffDay < 30) return `${diffDay} hari lalu`;
+  const diffMonth = Math.round(diffDay / 30);
+  return `${diffMonth} bulan lalu`;
+}
+</file>
+
+<file path="src/middleware.ts">
+import { createServerClient, type CookieOptions } from '@supabase/ssr';
+import { NextResponse, type NextRequest } from 'next/server';
+
+/**
+ * This is what makes the app private. It runs on every request:
+ *  1. Refreshes the Supabase session cookie (required by @supabase/ssr).
+ *  2. If there's no session, and the request isn't for /login or an asset,
+ *     redirect to /login.
+ *  3. If there IS a session but its email isn't ALLOWED_EMAIL, sign it out
+ *     and redirect to /login?denied=1 — so even if someone else creates a
+ *     Supabase account, or a leaked session cookie is replayed, they never
+ *     see your data.
+ */
+export async function middleware(request: NextRequest) {
+  const response = NextResponse.next({ request: { headers: request.headers } });
+
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        get(name: string) {
+          return request.cookies.get(name)?.value;
+        },
+        set(name: string, value: string, options: CookieOptions) {
+          response.cookies.set({ name, value, ...options });
+        },
+        remove(name: string, options: CookieOptions) {
+          response.cookies.set({ name, value: '', ...options });
+        },
+      },
+    }
+  );
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const { pathname } = request.nextUrl;
+  const isAuthRoute = pathname.startsWith('/login') || pathname.startsWith('/api/auth');
+
+  const allowedEmail = process.env.ALLOWED_EMAIL?.toLowerCase().trim();
+
+  if (!user && !isAuthRoute) {
+    const url = request.nextUrl.clone();
+    url.pathname = '/login';
+    return NextResponse.redirect(url);
+  }
+
+  if (user && allowedEmail && user.email?.toLowerCase() !== allowedEmail) {
+    await supabase.auth.signOut();
+    const url = request.nextUrl.clone();
+    url.pathname = '/login';
+    url.searchParams.set('denied', '1');
+    return NextResponse.redirect(url);
+  }
+
+  if (user && pathname === '/login') {
+    const url = request.nextUrl.clone();
+    url.pathname = '/';
+    return NextResponse.redirect(url);
+  }
+
+  return response;
+}
+
+export const config = {
+  matcher: [
+    /*
+     * Match all paths except static files and images, so the check above
+     * runs for pages and API routes but not for _next/static, favicon, etc.
+     */
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+  ],
+};
+</file>
+
+<file path=".gitignore">
+node_modules
+.next
+out
+.env
+.env.local
+.env*.local
+.vercel
+*.tsbuildinfo
+next-env.d.ts
+.DS_Store
+</file>
+
+<file path="next.config.js">
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+  experimental: {
+    serverActions: {
+      bodySizeLimit: '2mb',
+    },
+  },
+};
+
+module.exports = nextConfig;
+</file>
+
+<file path="package.json">
+{
+  "name": "pkm-ai-memory",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Private personal knowledge management app with AI-augmented memory (Memory Buoyancy, Preservation Value, Managed Forgetting, Spaced Repetition).",
+  "scripts": {
+    "dev": "next dev",
+    "build": "prisma generate && next build",
+    "start": "next start",
+    "lint": "next lint",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:deploy": "prisma migrate deploy",
+    "prisma:studio": "prisma studio",
+    "seed": "tsx prisma/seed.ts"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.20.0",
+    "@supabase/ssr": "^0.5.1",
+    "@supabase/supabase-js": "^2.45.4",
+    "clsx": "^2.1.1",
+    "date-fns": "^3.6.0",
+    "lucide-react": "^0.446.0",
+    "next": "14.2.13",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "tailwind-merge": "^2.5.2"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.15",
+    "@types/react": "^18.3.5",
+    "@types/react-dom": "^18.3.0",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.47",
+    "prisma": "^5.20.0",
+    "tailwindcss": "^3.4.11",
+    "tsx": "^4.19.1",
+    "typescript": "^5.6.2"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  },
+  "allowScripts": {
+    "@prisma/client@5.22.0": true,
+    "@prisma/engines@5.22.0": true,
+    "esbuild@0.28.2": true,
+    "prisma@5.22.0": true
+  }
+}
+</file>
+
+<file path="postcss.config.js">
+module.exports = {
+  plugins: {
+    tailwindcss: {},
+    autoprefixer: {},
+  },
+};
+</file>
+
+<file path="README.md">
+# Second Brain — PKM AI Memory (private)
+
+Aplikasi personal knowledge management dengan augmentasi memori berbasis AI:
+**Memory Buoyancy**, **Preservation Value**, **Managed Forgetting** (folder
+injeksi ♦Last Focus♦ / ♦Hot Topics♦ / ♦Forgotten♦), ontologi **PIMO**
+(Project/Topic/Person/Event/Task/Note), dan **Active Recall** dengan
+penjadwalan spaced-repetition H+1/H+7/H+30.
+
+Dibangun private untuk satu orang: hanya satu alamat email (`ALLOWED_EMAIL`)
+yang bisa masuk, ditegakkan di `middleware.ts` pada setiap request — bukan
+hanya di halaman login.
+
+Stack: Next.js 14 (App Router, Server Actions) · TypeScript · Tailwind ·
+Prisma · Supabase (Postgres + Auth, magic link, tanpa password).
+
+## Struktur direktori
+
+```
+prisma/
+  schema.prisma        # seluruh model data (User, Project, Topic, Person,
+                        # Event, Task, Note, Interaction, MemoryScore,
+                        # ActiveRecallSession)
+  seed.ts               # data contoh opsional
+
+src/
+  middleware.ts          # gerbang privasi: cek sesi + ALLOWED_EMAIL
+  app/
+    (auth)/login/        # halaman masuk (magic link)
+    (dashboard)/          # semua halaman terproteksi
+      page.tsx             # dashboard: kolom Last Focus/Hot Topics/Forgotten
+      notes/                # daftar + editor catatan
+      recall/               # antrian kuis active recall
+      projects/ topics/
+      people/ events/ tasks/
+    actions/               # Server Actions (notes, pimo, tasks, recall, auth)
+    api/
+      auth/callback/        # tukar kode magic-link jadi sesi
+      recompute-scores/     # endpoint cron: hitung ulang MB/PV/folder
+  components/
+    ui/                    # primitif (Button, Card, Badge, Input…)
+    pkm/                   # Sidebar, TopBar, NoteCard, RecallCard, ScorePill
+  lib/
+    prisma.ts              # Prisma client singleton
+    supabase/{server,client}.ts
+    memory/scoring.ts       # rumus MB, PV, kategorisasi folder (IFI)
+    memory/recall.ts        # penjadwalan spaced repetition
+    current-user.ts         # resolve/upsert User dari sesi Supabase
+```
+
+## Setup
+
+### 1. Buat proyek Supabase
+
+1. https://supabase.com → New project.
+2. **Settings → API**: salin `Project URL` dan `anon public` key ke
+   `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
+3. **Settings → API**: salin `service_role` key ke `SUPABASE_SERVICE_ROLE_KEY`
+   (tidak dipakai langsung oleh app ini, disiapkan untuk kebutuhan admin di
+   masa depan — jangan pernah kirim ke client).
+4. **Settings → Database → Connection string**: salin connection string mode
+   *Transaction* (port 6543) ke `DATABASE_URL`, dan mode *Session*/direct
+   (port 5432) ke `DIRECT_URL`.
+5. **Authentication → Providers**: pastikan Email provider aktif, matikan
+   "Confirm email" jika ingin magic link langsung aktif tanpa konfirmasi
+   ganda (opsional).
+6. **Authentication → URL Configuration**: tambahkan
+   `http://localhost:3000/api/auth/callback` (dev) dan
+   `https://domain-kamu.com/api/auth/callback` (production) ke Redirect URLs.
+
+### 2. Salin environment variables
+
+```bash
+cp .env.example .env
+```
+
+Isi semua nilai, termasuk `ALLOWED_EMAIL=akbarussadatprof@gmail.com` — ini
+satu-satunya email yang boleh login. Set juga `NEXT_PUBLIC_SITE_URL` (dipakai
+untuk redirect magic link) dan `CRON_SECRET` (string acak panjang).
+
+### 3. Install & migrasi
+
+```bash
+npm install
+npx prisma migrate dev --name init
+npm run dev
+```
+
+Buka http://localhost:3000 → akan diarahkan ke `/login` → masukkan email
+yang sama dengan `ALLOWED_EMAIL` → cek inbox → klik link → masuk ke
+dashboard.
+
+### 4. (Opsional) Data contoh
+
+Setelah login pertama kali, cari `id` kamu di tabel `User` (Prisma Studio:
+`npm run prisma:studio`), lalu:
+
+```bash
+SEED_USER_ID=<id-kamu> npm run seed
+```
+
+### 5. Deploy (disarankan: Vercel)
+
+1. Push repo ini ke GitHub (private repo — `.env` sudah di-`.gitignore`).
+2. Import ke Vercel, tambahkan semua environment variables yang sama.
+3. `vercel.json` sudah menyertakan cron harian ke `/api/recompute-scores`
+   (jam 02:00 UTC) yang menghitung ulang Memory Buoyancy, Preservation
+   Value, dan kategori folder (♦Last Focus♦/♦Hot Topics♦/♦Forgotten♦) untuk
+   semua catatan — Vercel otomatis mengirim header
+   `Authorization: Bearer $CRON_SECRET`.
+4. Tambahkan URL Vercel kamu ke Supabase **Authentication → URL
+   Configuration → Redirect URLs**.
+
+## Cara kerja skor memori
+
+- **Memory Buoyancy (MB)** dihitung dari log `Interaction` (CREATE/EDIT/
+  COMMENT/VIEW), diluruhkan eksponensial berdasarkan hari sejak interaksi
+  (`src/lib/memory/scoring.ts`). Ini dihitung ulang setiap kali endpoint
+  cron dipanggil.
+- **Preservation Value (PV)** = kombinasi berbobot User Investment, Gravity
+  (keterhubungan graf), Social Graph, Popularity, Coverage, Quality.
+- **Folder (IFI)**: `LAST_FOCUS` jika baru disentuh (≤3 hari) & MB tinggi;
+  `HOT_TOPICS` jika terhubung ke topik yang ditandai hot; `FORGOTTEN` jika MB
+  & PV sama-sama rendah (data tidak pernah dihapus, hanya disembunyikan);
+  selain itu `ACTIVE`.
+- **Active Recall**: setiap catatan bisa punya kuis (`ActiveRecallSession`).
+  Menjawab benar melipatgandakan interval berikutnya (1 → 7 → 30 → 90 hari);
+  jawaban salah mengembalikan ke 1 hari.
+
+## Keamanan & privasi
+
+- `middleware.ts` menolak setiap request yang sesinya bukan milik
+  `ALLOWED_EMAIL`, termasuk sesi yang sudah valid di Supabase tapi bukan
+  emailmu — jadi berbagi link deploy tidak membuka data kamu.
+- Login tanpa password (magic link) — tidak ada kredensial untuk dibobol
+  lewat brute force.
+- Semua query Prisma difilter `userId`, jadi meskipun di masa depan kamu
+  menambah pengguna lain, data tetap terisolasi per akun.
+</file>
+
+<file path="tailwind.config.ts">
+import type { Config } from 'tailwindcss';
+
+const config: Config = {
+  darkMode: 'class',
+  content: ['./src/**/*.{ts,tsx}'],
+  theme: {
+    extend: {
+      fontFamily: {
+        display: ['var(--font-display)', 'Georgia', 'serif'],
+        body: ['var(--font-body)', 'system-ui', 'sans-serif'],
+        mono: ['var(--font-mono)', 'ui-monospace', 'monospace'],
+      },
+      colors: {
+        bg: 'var(--bg)',
+        surface: 'var(--surface)',
+        ink: 'var(--ink)',
+        'ink-soft': 'var(--ink-soft)',
+        line: 'var(--line)',
+        accent: 'var(--accent)',
+        'accent-soft': 'var(--accent-soft)',
+        accent2: 'var(--accent2)',
+        'accent2-soft': 'var(--accent2-soft)',
+      },
+      borderRadius: {
+        card: '18px',
+      },
+    },
+  },
+  plugins: [],
+};
+
+export default config;
+</file>
+
+<file path="tsconfig.json">
+{
+  "compilerOptions": {
+    "target": "ES2017",
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "preserve",
+    "incremental": true,
+    "plugins": [{ "name": "next" }],
+    "paths": {
+      "@/*": ["./src/*"]
+    }
+  },
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
+  "exclude": ["node_modules"]
+}
+</file>
+
+<file path="vercel.json">
+{
+  "crons": [
+    {
+      "path": "/api/recompute-scores",
+      "schedule": "0 2 * * *"
+    }
+  ]
+}
+</file>
+
+</files>

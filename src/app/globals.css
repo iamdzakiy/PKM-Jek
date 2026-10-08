@@ -1,0 +1,113 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── GSIC palette ───────────────────────────────────────────────────────
+   blue  #3352CD   mint #5CE3B6   cream #F2F8C9   navy #0B1120 / #111C33
+   Dark is the GSIC navy shell; light mirrors the GSIC portal (slate-50).
+   Values are space-separated RGB so Tailwind alpha modifiers work.        */
+:root {
+  --bg: 248 250 252;
+  --surface: 255 255 255;
+  --surface-2: 241 245 249;
+  --ink: 15 23 42;
+  --ink-soft: 71 85 105;
+  --ink-faint: 100 116 139;
+  --line: 226 232 240;
+  --brand: 41 67 173; /* #2943AD: text/links on light */
+  --brand-solid: 51 82 205; /* #3352CD: fills */
+  --brand-soft: 239 243 253;
+  --mint: 15 126 94; /* #0F7E5E on light, #5CE3B6 on dark */
+  --mint-soft: 213 246 234;
+  --warn: 161 98 7;
+  --warn-soft: 254 243 199;
+  --danger: 185 28 28;
+  --danger-soft: 254 226 226;
+  --shadow: 15 23 42;
+  --font-inter: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-jakarta: 'Plus Jakarta Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  color-scheme: light;
+}
+
+.dark {
+  --bg: 11 17 32;
+  --surface: 17 28 51;
+  --surface-2: 22 35 63;
+  --ink: 226 232 240;
+  --ink-soft: 148 163 184;
+  --ink-faint: 117 132 156;
+  --line: 38 52 82;
+  --brand: 147 168 238; /* #93A8EE */
+  --brand-solid: 51 82 205;
+  --brand-soft: 24 39 82;
+  --mint: 92 227 182;
+  --mint-soft: 26 52 67;
+  --warn: 251 191 36;
+  --warn-soft: 56 44 24;
+  --danger: 248 113 113;
+  --danger-soft: 62 28 38;
+  --shadow: 0 0 0;
+  color-scheme: dark;
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+  body {
+    @apply bg-bg font-sans text-ink antialiased;
+    font-feature-settings: 'cv11', 'ss01';
+  }
+  h1,
+  h2,
+  h3,
+  h4 {
+    @apply font-heading tracking-tight;
+  }
+  * {
+    border-color: rgb(var(--line));
+  }
+  ::selection {
+    background: rgb(var(--brand-solid) / 0.3);
+  }
+  :focus-visible {
+    outline: 2px solid rgb(var(--brand-solid));
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+}
+
+@layer utilities {
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+  .scroll-thin {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(var(--line)) transparent;
+  }
+  .dot-grid {
+    background-image: radial-gradient(rgb(255 255 255 / 0.07) 1px, transparent 1px);
+    background-size: 22px 22px;
+  }
+}
+
+select.select-chevron {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 2.25rem;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394A3B8' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.7rem center;
+}
+
+/* Native <details>, selects and date pickers follow the theme */
+select,
+input[type='datetime-local'] {
+  color-scheme: inherit;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}

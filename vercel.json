@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/recompute-scores",
+      "schedule": "0 2 * * *"
+    }
+  ]
+}
