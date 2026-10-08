@@ -44,21 +44,43 @@ export function supabaseEnvProblem(): string | null {
 }
 
 /**
+ * Reads one string field off an unknown error object. supabase-js errors are
+ * `AuthError extends Error` with an extra `code`, but network/mocked errors
+ * can be anything, so we probe instead of trusting the type.
+ */
+function errorField(error: unknown, key: string): string {
+  if (typeof error !== 'object' || error === null) return '';
+  const value = (error as Record<string, unknown>)[key];
+  return typeof value === 'string' ? value : '';
+}
+
+/**
  * Normalizes errors from supabase-js into a message safe to show on the
  * login form. Network failures ("fetch failed", DNS, ECONNREFUSED) mean the
  * request never reached Supabase, so we point at the config instead of
- * echoing the raw undici message.
+ * echoing the raw undici message. Rate limits (the built-in email provider
+ * allows 2 emails/hour and 60s between OTP requests for the same user) get
+ * translated too — the raw English "Email rate limit exceeded" says nothing
+ * about what to do next.
  */
 export function describeAuthError(error: unknown): string {
   const message =
-    error instanceof Error
-      ? error.message
-      : typeof error === 'object' && error !== null && 'message' in error
-        ? String((error as { message: unknown }).message)
-        : // supabase-js's own _getErrorMessage checks `msg` before `message`.
-          typeof error === 'object' && error !== null && 'msg' in error
-          ? String((error as { msg: unknown }).msg)
-          : JSON.stringify(error);
+    errorField(error, 'message') ||
+    errorField(error, 'msg') ||
+    (error instanceof Error ? error.message : '') ||
+    (typeof error === 'string' ? error : JSON.stringify(error));
+
+  // Machine-readable cause, e.g. `over_email_send_rate_limit`. Testing
+  // `code message` together catches the limit however Supabase words it.
+  const haystack = `${errorField(error, 'code')} ${message}`.toLowerCase();
+
+  if (/over_email_send_rate_limit|email rate limit/.test(haystack)) {
+    return 'Terlalu banyak link masuk yang diminta. Supabase membatasi 2 email per jam (provider bawaan) — tunggu sekitar 1 jam lalu coba lagi, atau naikkan batasnya di Supabase → Authentication → Rate Limits.';
+  }
+
+  if (/over_request_rate_limit|for security purposes/.test(haystack)) {
+    return 'Terlalu banyak permintaan berturut-turut. Supabase memberi jeda 60 detik sebelum link masuk berikutnya boleh diminta — tunggu sebentar lalu kirim ulang.';
+  }
 
   if (/fetch failed|failed to fetch|network|enotfound|econnrefused|etimedout|getaddrinfo/i.test(message)) {
     return 'Tidak bisa terhubung ke server Supabase. Periksa NEXT_PUBLIC_SUPABASE_URL di .env (harus Project URL asli, bukan placeholder) lalu coba lagi.';

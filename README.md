@@ -117,6 +117,25 @@ SEED_USER_ID=<id-kamu> npm run seed
 4. Tambahkan URL Vercel kamu ke Supabase **Authentication → URL
    Configuration → Redirect URLs**.
 
+## Troubleshooting
+
+### Login: "Email rate limit exceeded"
+
+Error ini datang dari Supabase, bukan dari aplikasi. Provider email bawaan
+Supabase hanya mengizinkan **2 email magic link per jam** (per proyek) dan
+jeda **60 detik** sebelum user yang sama boleh meminta link lagi; saat
+melewatinya Supabase membalas `429` / `over_email_send_rate_limit`.
+
+- Tunggu ±1 jam lalu coba lagi, **atau** naikkan kuotanya di Supabase →
+  **Authentication → Rate Limits** (*Emails sent per hour* dan *Send OTPs or
+  magic links*). Kalau butuh lebih, aktifkan custom SMTP di
+  **Authentication → Providers → Email**.
+- Form login sekarang menerjemahkan error ini ke pesan Indonesia yang bisa
+  ditindaklanjuti, dan memaksa jeda 60 detik setelah pengiriman sukses supaya
+  klik ganda / reload tidak membakar kuota.
+- Catatan: server action dijalankan dari IP server (bukan IP browser), jadi
+  limit berbasis IP juga dihitung dari satu alamat yang sama.
+
 ## Cara kerja skor memori
 
 - **Memory Buoyancy (MB)** dari log `Interaction` (CREATE/EDIT/COMMENT/VIEW), diluruhkan

@@ -1,5 +1,6 @@
 'use server';
 
+import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { describeAuthError, supabaseEnvProblem } from '@/lib/supabase/env';
@@ -8,6 +9,17 @@ export interface AuthActionState {
   status: 'idle' | 'sent' | 'error';
   message?: string;
 }
+
+/**
+ * Browser-local guard between two successful sends. Supabase's built-in
+ * email provider only allows 2 magic links per hour (and 60s between OTP
+ * requests), so a reload-and-resend double click would otherwise burn the
+ * quota and trigger "Email rate limit exceeded". This is UX protection, not
+ * security: Supabase's own server-side rate limit is what enforces the quota,
+ * and the cookie is trivial to clear.
+ */
+const RESEND_COOLDOWN_COOKIE = 'magic_link_sent_at';
+const RESEND_COOLDOWN_MS = 60_000;
 
 /**
  * Sends a magic link. We never expose a password field: a link emailed to
@@ -30,6 +42,16 @@ export async function sendMagicLink(_prev: AuthActionState, formData: FormData):
   const envProblem = supabaseEnvProblem();
   if (envProblem) return { status: 'error', message: envProblem };
 
+  const jar = cookies();
+  const lastSentAt = Number(jar.get(RESEND_COOLDOWN_COOKIE)?.value);
+  const remainingMs = Number.isFinite(lastSentAt) && lastSentAt > 0 ? RESEND_COOLDOWN_MS - (Date.now() - lastSentAt) : 0;
+  if (remainingMs > 0) {
+    return {
+      status: 'error',
+      message: `Tunggu ${Math.ceil(remainingMs / 1000)} detik sebelum meminta link masuk baru, ya.`,
+    };
+  }
+
   const supabase = createClient();
   try {
     const { error } = await supabase.auth.signInWithOtp({
@@ -44,6 +66,15 @@ export async function sendMagicLink(_prev: AuthActionState, formData: FormData):
     // Network-level failures (fetch failed) are thrown, not returned.
     return { status: 'error', message: describeAuthError(err) };
   }
+
+  // Writable in Server Actions. Runs only after a send actually succeeded,
+  // so a failed attempt never locks the user out of retrying.
+  jar.set(RESEND_COOLDOWN_COOKIE, String(Date.now()), {
+    path: '/',
+    maxAge: Math.ceil(RESEND_COOLDOWN_MS / 1000),
+    httpOnly: true,
+    sameSite: 'lax',
+  });
 
   return { status: 'sent', message: `Link masuk telah dikirim ke ${email}.` };
 }
