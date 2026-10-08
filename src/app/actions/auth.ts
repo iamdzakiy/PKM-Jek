@@ -53,11 +53,26 @@ export async function sendMagicLink(_prev: AuthActionState, formData: FormData):
   }
 
   const supabase = createClient();
+
+  // Path-absolute second argument discards any path on the base, so a
+  // misconfigured value like "https://x.vercel.app/login" still resolves to
+  // the correct callback instead of ".../login/api/auth/callback" (which
+  // Supabase would reject as not allow-listed and fall back to Site URL).
+  let emailRedirectTo: string;
+  try {
+    emailRedirectTo = new URL('/api/auth/callback', process.env.NEXT_PUBLIC_SITE_URL?.trim()).toString();
+  } catch {
+    return {
+      status: 'error',
+      message: 'NEXT_PUBLIC_SITE_URL belum di-set atau bukan URL valid (contoh: https://pkm-jek.vercel.app, tanpa path).',
+    };
+  }
+
   try {
     const { error } = await supabase.auth.signInWithOtp({
       email,
       options: {
-        emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/api/auth/callback`,
+        emailRedirectTo,
       },
     });
 
