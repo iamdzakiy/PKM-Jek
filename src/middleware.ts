@@ -12,9 +12,13 @@ import { NextResponse, type NextRequest } from 'next/server';
  *     see your data.
  */
 export async function middleware(request: NextRequest) {
-  // The cron endpoint authenticates itself with a bearer secret. Without this
-  // bypass the redirect to /login swallowed every scheduled call.
+  // The cron endpoints authenticate themselves with a bearer secret, and the
+  // Google webhook authenticates with the channel token it mints at watch
+  // registration — without these bypasses the redirect to /login swallowed
+  // every scheduled call and every push from Google.
   if (request.nextUrl.pathname.startsWith('/api/recompute-scores')) return NextResponse.next();
+  if (request.nextUrl.pathname.startsWith('/api/google/renew-watch')) return NextResponse.next();
+  if (request.nextUrl.pathname.startsWith('/api/google/webhook')) return NextResponse.next();
 
   const response = NextResponse.next({ request: { headers: request.headers } });
 

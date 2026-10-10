@@ -7,6 +7,7 @@ import { refreshAllScores } from '@/lib/memory/refresh';
 import { parseLocalDateTime } from '@/lib/utils';
 import type { ActionResult } from '@/lib/types';
 import type { ProjectStatus } from '@prisma/client';
+import { pushEventToGoogle, removeRowFromGoogle } from '@/lib/google/sync';
 
 const PROJECT_STATUSES: ProjectStatus[] = ['ACTIVE', 'ARCHIVED', 'COMPLETED'];
 
@@ -84,8 +85,21 @@ export async function createEvent(formData: FormData): Promise<ActionResult> {
   const location = String(formData.get('location') ?? '').trim().slice(0, 160) || null;
   if (!title || !startAt) return { ok: false, message: 'Judul dan waktu wajib diisi.' };
 
-  await prisma.event.create({ data: { userId: user.id, title, startAt, location } });
+  const event = await prisma.event.create({ data: { userId: user.id, title, startAt, location } });
+  // Best-effort mirror to Google — a Calendar outage must not fail the form.
+  await pushEventToGoogle(event);
   revalidatePath('/events');
   revalidatePath('/');
   return { ok: true, message: 'Acara ditambahkan.' };
+}
+
+export async function deleteEvent(eventId: string): Promise<ActionResult> {
+  const user = await requireUser();
+  const event = await prisma.event.findFirst({ where: { id: eventId, userId: user.id } });
+  if (!event) return { ok: true }; // already gone — idempotent
+  await prisma.event.delete({ where: { id: event.id } });
+  await removeRowFromGoogle(user.id, event.googleEventId);
+  revalidatePath('/events');
+  revalidatePath('/');
+  return { ok: true, message: 'Acara dihapus.' };
 }

@@ -1,4 +1,4 @@
-import { BrainCircuit, CalendarDays, FolderKanban, Hash, LayoutDashboard, ListChecks, NotebookText, SlidersHorizontal, Users, type LucideIcon } from 'lucide-react';
+import { BrainCircuit, CalendarClock, CalendarDays, FolderKanban, Hash, LayoutDashboard, ListChecks, NotebookText, SlidersHorizontal, Users, type LucideIcon } from 'lucide-react';
 
 export interface NavItem {
   href: string;
@@ -27,7 +27,10 @@ export const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
   },
   {
     title: 'Mesin',
-    items: [{ href: '/engine', label: 'Pembobotan', icon: SlidersHorizontal }],
+    items: [
+      { href: '/engine', label: 'Pembobotan', icon: SlidersHorizontal },
+      { href: '/settings/google', label: 'Google Calendar', icon: CalendarClock },
+    ],
   },
 ];
 

@@ -31,6 +31,8 @@ model User {
   events   Event[]
   tasks    Task[]
   notes    Note[]
+
+  googleAccount GoogleAccount?
 }
 
 // ── PIMO entities ──────────────────────────────────────────────────────
@@ -94,6 +96,8 @@ model Event {
   title     String
   startAt   DateTime
   location  String?
+  // id on Google Calendar — null until the row has been pushed at least once.
+  googleEventId String? @unique
   createdAt DateTime @default(now())
 
   notes Note[]
@@ -118,10 +122,46 @@ model Task {
   // spatiotemporal negotiation (Kairotask-style benign friction)
   dueAt     DateTime?
   location  String?
+  // mirror of the Google event this task was pushed to (tasks only sync when
+  // they have a dueAt — there's no time anchor to hang them on otherwise)
+  googleEventId String? @unique
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
 
   @@index([userId, status])
+}
+
+// ── Google Calendar link (optional, real-time two-way sync) ───────────────
+// Single-tenant app → one row per user (userId is unique). Holds the OAuth
+// grant, the incremental-pull syncToken, and the push-notification channel
+// that /api/google/watch renews before its ≤7-day expiry.
+model GoogleAccount {
+  id         String @id @default(cuid())
+  userId     String @unique
+  user       User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Google account (email) the consent screen approved — shown in settings.
+  email      String
+  calendarId String @default("primary")
+
+  // OAuth 2.0 tokens. accessToken is re-minted from refreshToken on demand;
+  // refreshToken only comes back from Google on the FIRST consent, so it is
+  // never overwritten with null when re-authorizing.
+  accessToken  String?
+  refreshToken String
+  expiresAt    DateTime
+
+  // Incremental pull state: events.list({ syncToken }) deltas since last poll.
+  syncToken String?
+
+  // events.watch channel. channelId is the id WE chose, channelResourceId is
+  // Google's per-calendar id; the webhook matches on channelId + channelToken.
+  channelId         String?
+  channelResourceId String?
+  channelToken      String?
+  channelExpiration DateTime?
+
+  connectedAt DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
 
 // ── Notes: the atomic unit that memory scoring operates on ────────────
