@@ -1,0 +1,131 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Palet GSIC, digeser ke tengah spektrum ─────────────────────────────
+   Tujuan: kontras teks tetap AA (≥ 4.5:1), tetapi latar tidak hitam pekat
+   dan tidak putih penuh, agar tidak silau dan tidak melelahkan mata.
+   Nilai berupa RGB dipisah spasi supaya modifier alpha Tailwind berfungsi. */
+:root {
+  /* "Pagi lembut" */
+  --bg: 233 237 245;
+  --surface: 244 246 251;
+  --surface-2: 223 229 240;
+  --ink: 30 41 59;
+  --ink-soft: 63 77 99;
+  --ink-faint: 90 103 125;
+  --line: 205 213 228;
+  --brand: 41 67 173;
+  --brand-solid: 51 82 205;
+  --brand-soft: 224 232 252;
+  --mint: 15 126 94;
+  --mint-soft: 207 238 226;
+  --warn: 150 92 10;
+  --warn-soft: 250 236 200;
+  --danger: 160 60 60; /* dilembutkan, bukan merah murni */
+  --danger-soft: 244 224 224;
+  --shadow: 30 41 59;
+
+  /* Energi: pastel hangat sampai sejuk, tidak ada merah */
+  --energy-urgent: 243 201 168;
+  --energy-deadline: 201 214 247;
+  --energy-admin: 217 222 232;
+  --energy-creative: 189 235 216;
+
+  --font-inter: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-jakarta: 'Plus Jakarta Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  color-scheme: light;
+}
+
+.dark {
+  /* "Senja": navy tengah, bukan hampir hitam */
+  --bg: 30 39 60;
+  --surface: 40 51 78;
+  --surface-2: 50 63 94;
+  --ink: 218 226 240;
+  --ink-soft: 166 180 204;
+  --ink-faint: 140 154 180;
+  --line: 66 80 114;
+  --brand: 160 180 245;
+  --brand-solid: 70 100 215;
+  --brand-soft: 44 60 112;
+  --mint: 110 224 186;
+  --mint-soft: 38 70 84;
+  --warn: 240 196 100;
+  --warn-soft: 70 58 40;
+  --danger: 232 150 150;
+  --danger-soft: 70 42 56;
+  --shadow: 0 0 0;
+
+  --energy-urgent: 138 90 60;
+  --energy-deadline: 58 79 148;
+  --energy-admin: 58 70 94;
+  --energy-creative: 45 107 88;
+  color-scheme: dark;
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+  body {
+    @apply bg-bg font-sans text-ink antialiased;
+    font-feature-settings: 'cv11', 'ss01';
+  }
+  h1,
+  h2,
+  h3,
+  h4 {
+    @apply font-heading tracking-tight;
+  }
+  * {
+    border-color: rgb(var(--line));
+  }
+  ::selection {
+    background: rgb(var(--brand-solid) / 0.3);
+  }
+  :focus-visible {
+    outline: 2px solid rgb(var(--brand-solid));
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+}
+
+@layer utilities {
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+  .scroll-thin {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(var(--line)) transparent;
+  }
+  .dot-grid {
+    background-image: radial-gradient(rgb(255 255 255 / 0.07) 1px, transparent 1px);
+    background-size: 22px 22px;
+  }
+  /* Opsi "kurangi warna" untuk pengguna yang sensitif secara sensori */
+  .calm main {
+    filter: saturate(0.55);
+  }
+}
+
+select.select-chevron {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 2.25rem;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394A3B8' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.7rem center;
+}
+
+select,
+input[type='datetime-local'],
+input[type='date'] {
+  color-scheme: inherit;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}

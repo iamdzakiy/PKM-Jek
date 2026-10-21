@@ -1,0 +1,6 @@
+-- AlterTable
+ALTER TABLE "Habit" ALTER COLUMN "variants" DROP DEFAULT,
+ALTER COLUMN "firstSteps" DROP DEFAULT;
+
+-- AlterTable
+ALTER TABLE "Task" ALTER COLUMN "firstSteps" DROP DEFAULT;

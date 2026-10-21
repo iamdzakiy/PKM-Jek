@@ -1,0 +1,505 @@
+// ─────────────────────────────────────────────────────────────────────────
+// PKM AI Memory — Prisma schema
+// Models the PIMO ontology (Project / Topic / Person / Event / Task / Note)
+// plus the Memory Buoyancy (MB), Preservation Value (PV) and Managed
+// Forgetting (IFI) machinery described in the research notes.
+// Single-tenant, private app: every row is scoped to `userId`, and app-level
+// auth (middleware.ts) only ever admits one Supabase user (yours).
+// ─────────────────────────────────────────────────────────────────────────
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ── Identity ────────────────────────────────────────────────────────────
+
+model User {
+  id        String   @id // matches Supabase auth.users.id
+  email     String   @unique
+  name      String?
+  createdAt DateTime @default(now())
+
+  projects Project[]
+  topics   Topic[]
+  people   Person[]
+  events   Event[]
+  tasks    Task[]
+  notes    Note[]
+
+  googleAccount GoogleAccount?
+
+  // ── ADHD OS ──
+  habits             Habit[]
+  adminSources       AdminSource[]
+  adminSweeps        AdminSweepSession[]
+  adminItems         AdminItem[]
+  opportunities      Opportunity[]
+  sprints            Sprint[]
+  microWins          MicroWin[]
+  progress           UserProgress?
+  bodyDoubleSessions BodyDoubleSession[]
+}
+
+// ── PIMO entities ──────────────────────────────────────────────────────
+
+enum ProjectStatus {
+  ACTIVE
+  ARCHIVED
+  COMPLETED
+}
+
+model Project {
+  id          String        @id @default(cuid())
+  userId      String
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  status      ProjectStatus @default(ACTIVE)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  notes Note[]
+  tasks Task[]
+
+  @@index([userId])
+}
+
+model Topic {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  // "hot topic" flag surfaced in the ♦Associated with hot topics♦ IFI folder
+  isHot     Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  notes NoteTopic[]
+
+  @@unique([userId, name])
+  @@index([userId])
+}
+
+model Person {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name       String
+  relation   String? // e.g. "advisor", "collaborator"
+  // 1 (low) – 5 (high): feeds the Social Graph (SG) dimension of Preservation Value
+  importance Int      @default(1)
+  createdAt  DateTime @default(now())
+
+  notes NotePerson[]
+
+  @@index([userId])
+}
+
+model Event {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  startAt   DateTime
+  location  String?
+  // id on Google Calendar — null until the row has been pushed at least once.
+  googleEventId String? @unique
+  createdAt DateTime @default(now())
+
+  notes Note[]
+
+  @@index([userId])
+}
+
+enum TaskStatus {
+  OPEN
+  IN_PROGRESS
+  DONE
+}
+
+model Task {
+  id        String     @id @default(cuid())
+  userId    String
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  projectId String?
+  project   Project?   @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  title     String
+  status    TaskStatus @default(OPEN)
+  // spatiotemporal negotiation (Kairotask-style benign friction)
+  dueAt     DateTime?
+  location  String?
+  // mirror of the Google event this task was pushed to (tasks only sync when
+  // they have a dueAt — there's no time anchor to hang them on otherwise)
+  googleEventId String? @unique
+
+  // ── ADHD OS: semua additive, row lama tetap valid ──
+  energyType    EnergyType @default(ADMIN)
+  handoverDate  DateTime? // tanggal serah terima final (reverse planning)
+  leadDays      Int? // hasil reverse-planning
+  firstSteps    String[] // maks 3 langkah fisik pertama
+  consequence   String? // apa yang terjadi kalau tidak disentuh
+  parentId      String?
+  parent        Task?      @relation("TaskMilestones", fields: [parentId], references: [id], onDelete: SetNull)
+  milestones    Task[]     @relation("TaskMilestones")
+  sprintId      String?
+  lastTouchedAt DateTime   @default(now())
+  archived      Boolean    @default(false)
+
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  @@index([userId, status])
+  @@index([userId, energyType, status])
+}
+
+// ── Google Calendar link (optional, real-time two-way sync) ───────────────
+// Single-tenant app → one row per user (userId is unique). Holds the OAuth
+// grant, the incremental-pull syncToken, and the push-notification channel
+// that /api/google/watch renews before its ≤7-day expiry.
+model GoogleAccount {
+  id         String @id @default(cuid())
+  userId     String @unique
+  user       User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Google account (email) the consent screen approved — shown in settings.
+  email      String
+  calendarId String @default("primary")
+
+  // OAuth 2.0 tokens. accessToken is re-minted from refreshToken on demand;
+  // refreshToken only comes back from Google on the FIRST consent, so it is
+  // never overwritten with null when re-authorizing.
+  accessToken  String?
+  refreshToken String
+  expiresAt    DateTime
+
+  // Incremental pull state: events.list({ syncToken }) deltas since last poll.
+  syncToken String?
+
+  // events.watch channel. channelId is the id WE chose, channelResourceId is
+  // Google's per-calendar id; the webhook matches on channelId + channelToken.
+  channelId         String?
+  channelResourceId String?
+  channelToken      String?
+  channelExpiration DateTime?
+
+  connectedAt DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// ── Notes: the atomic unit that memory scoring operates on ────────────
+
+enum NoteType {
+  NOTE
+  TASK
+  IDEA
+  INSIGHT
+}
+
+model Note {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  content   String
+  type      NoteType @default(NOTE)
+
+  projectId String?
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  eventId   String?
+  event     Event?   @relation(fields: [eventId], references: [id], onDelete: SetNull)
+
+  topics NoteTopic[]
+  people NotePerson[]
+
+  // spatiotemporal metadata injected at ingestion
+  spatiotemporalTime     String?
+  spatiotemporalLocation String?
+  device                 String?
+
+  // raw inputs to Preservation Value — updated as the user works the note
+  userInvestment Float @default(0) // UI: normalized effort (edits, annotations)
+  quality        Float @default(0.5) // Q: technical/content quality, 0–1
+  coverage       Float @default(0.5) // C: how well it represents its topic area, 0–1
+
+  interactions    Interaction[]
+  recallSessions  ActiveRecallSession[]
+  memoryScore     MemoryScore?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([userId, projectId])
+}
+
+model NoteTopic {
+  noteId  String
+  topicId String
+  note    Note  @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  topic   Topic @relation(fields: [topicId], references: [id], onDelete: Cascade)
+
+  @@id([noteId, topicId])
+}
+
+model NotePerson {
+  noteId   String
+  personId String
+  note     Note   @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  person   Person @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  @@id([noteId, personId])
+}
+
+// ── Activity log driving Memory Buoyancy ───────────────────────────────
+
+enum InteractionType {
+  CREATE
+  EDIT
+  COMMENT
+  VIEW
+}
+
+model Interaction {
+  id        String           @id @default(cuid())
+  noteId    String
+  note      Note             @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  type      InteractionType
+  weight    Float // w_i: CREATE=1.0 EDIT=0.8 COMMENT=0.9 VIEW=0.2
+  createdAt DateTime         @default(now())
+
+  @@index([noteId, createdAt])
+}
+
+// ── Computed memory score + Intelligent Folder Injection bucket ───────
+
+enum MemoryFolder {
+  LAST_FOCUS // ♦Last Focus♦
+  HOT_TOPICS // ♦Associated with hot topics♦
+  ACTIVE // ordinary, still visible
+  TIME_CAPSULE // low MB but high PV: kept in the long-term archive
+  FORGOTTEN // ♦Forgotten♦ — hidden, never deleted
+}
+
+model MemoryScore {
+  id                String       @id @default(cuid())
+  noteId            String       @unique
+  note              Note         @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  memoryBuoyancy    Float        @default(0)
+  preservationValue Float        @default(0)
+  folder            MemoryFolder @default(ACTIVE)
+  computedAt        DateTime     @default(now())
+
+  @@index([folder])
+}
+
+// ── Active recall / spaced repetition ──────────────────────────────────
+
+model ActiveRecallSession {
+  id            String    @id @default(cuid())
+  noteId        String
+  note          Note      @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  question      String
+  correctAnswer String
+  userAnswer    String?
+  isCorrect     Boolean?
+  // SM-2-lite scheduling: interval doubles on success, resets to 1 on failure
+  intervalDays  Int       @default(1)
+  nextReviewAt  DateTime
+  reviewedAt    DateTime?
+  createdAt     DateTime  @default(now())
+
+  @@index([noteId])
+  @@index([nextReviewAt])
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// ADHD OS: lapisan baru di atas mesin memori. Tidak ada yang dihapus.
+// ═══════════════════════════════════════════════════════════════════════
+
+enum EnergyType {
+  URGENT
+  DEADLINE
+  ADMIN
+  CREATIVE
+}
+
+enum HabitCategory {
+  PHYSICAL
+  MENTAL
+  REFLECTIVE
+  ROUTINE
+}
+
+enum AdminSourceKind {
+  EMAIL
+  WHATSAPP
+  PORTAL
+  OTHER
+}
+
+enum AdminItemStatus {
+  OPEN
+  IN_PROGRESS
+  DONE
+  SKIPPED
+}
+
+enum OpportunityStatus {
+  WATCHING
+  APPLYING
+  SUBMITTED
+  ARCHIVED
+}
+
+model Habit {
+  id            String        @id @default(cuid())
+  userId        String
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name          String
+  category      HabitCategory @default(ROUTINE)
+  variants      String[] // rotasi format (Novelty)
+  anchorTrigger String? // habit stacking: "setelah minum kopi pagi"
+  firstSteps    String[] // First 3 Steps
+  daysOfWeek    Int[]         @default([1, 2, 3, 4, 5, 6, 7]) // 1=Senin ... 7=Minggu
+  targetMinutes Int           @default(15)
+  archived      Boolean       @default(false)
+  createdAt     DateTime      @default(now())
+  logs          HabitLog[]
+
+  @@index([userId, archived])
+}
+
+model HabitLog {
+  id          String   @id @default(cuid())
+  habitId     String
+  habit       Habit    @relation(fields: [habitId], references: [id], onDelete: Cascade)
+  date        DateTime @db.Date
+  stepsDone   Int      @default(0)
+  completed   Boolean  @default(false)
+  variantUsed String?
+  minutes     Int?
+  notes       String?
+  createdAt   DateTime @default(now())
+
+  @@unique([habitId, date])
+  @@index([habitId, date])
+}
+
+model AdminSource {
+  id        String              @id @default(cuid())
+  userId    String
+  user      User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  kind      AdminSourceKind
+  url       String?
+  note      String?
+  active    Boolean             @default(true)
+  createdAt DateTime            @default(now())
+  items     AdminItem[]
+
+  @@index([userId, active])
+}
+
+model AdminSweepSession {
+  id         String      @id @default(cuid())
+  userId     String
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  startedAt  DateTime    @default(now())
+  endedAt    DateTime?
+  plannedMin Int         @default(20)
+  notes      String?
+  itemsFound Int         @default(0)
+  items      AdminItem[]
+
+  @@index([userId, startedAt])
+}
+
+model AdminItem {
+  id        String             @id @default(cuid())
+  userId    String
+  user      User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sourceId  String
+  source    AdminSource        @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  sessionId String?
+  session   AdminSweepSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  title     String
+  status    AdminItemStatus    @default(OPEN)
+  dueAt     DateTime?
+  notes     String?
+  createdAt DateTime           @default(now())
+
+  @@index([userId, status])
+}
+
+model Opportunity {
+  id           String            @id @default(cuid())
+  userId       String
+  user         User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title        String
+  source       String?
+  url          String?
+  handoverDate DateTime
+  leadDays     Int?
+  status       OpportunityStatus @default(WATCHING)
+  notes        String?
+  createdAt    DateTime          @default(now())
+
+  @@index([userId, status, handoverDate])
+}
+
+model Sprint {
+  id         String     @id @default(cuid())
+  userId     String
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  energyType EnergyType
+  startsAt   DateTime   @default(now())
+  endsAt     DateTime
+  endedAt    DateTime?
+  bufferMin  Int        @default(15)
+  taskId     String?
+  taskTitle  String?
+  notes      String?
+  createdAt  DateTime   @default(now())
+
+  @@index([userId, startsAt])
+}
+
+model MicroWin {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  label     String
+  xp        Int      @default(5)
+  kind      String   @default("habit") // habit | task | reset | sweep | sprint
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+}
+
+model UserProgress {
+  userId       String    @id
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  xp           Int       @default(0)
+  level        Int       @default(1)
+  streakDays   Int       @default(0)
+  streakFrozen Int       @default(2) // sisa freeze; diisi ulang tiap awal pekan oleh cron
+  lastWinAt    DateTime?
+  updatedAt    DateTime  @updatedAt
+}
+
+model BodyDoubleSession {
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  roomId     String
+  taskTitle  String?
+  startedAt  DateTime  @default(now())
+  lastPingAt DateTime  @default(now())
+  endedAt    DateTime?
+
+  @@index([roomId, lastPingAt])
+}
