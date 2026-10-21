@@ -1,8 +1,6 @@
 {
   "crons": [
     { "path": "/api/recompute-scores", "schedule": "0 2 * * *" },
-    { "path": "/api/google/renew-watch", "schedule": "0 4 * * *" },
-    { "path": "/api/nudge", "schedule": "0 1 * * *" },
-    { "path": "/api/habit-rollover", "schedule": "0 16 * * *" }
+    { "path": "/api/google/renew-watch", "schedule": "0 4 * * *" }
   ]
 }
