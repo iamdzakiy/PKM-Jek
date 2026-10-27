@@ -40,6 +40,8 @@ export async function createTask(formData: FormData): Promise<ActionResult> {
       dueAt,
       energyType: asEnergy(formData.get('energyType')),
       consequence: String(formData.get('consequence') ?? '').trim().slice(0, 200) || null,
+      energyNeed: [1, 2, 3].includes(Number(formData.get('energyNeed'))) ? Number(formData.get('energyNeed')) : null,
+      estimateMin: Number(formData.get('estimateMin')) > 0 ? Math.min(600, Math.round(Number(formData.get('estimateMin')))) : null,
       firstSteps: firstThreeSteps(title),
     },
   });
@@ -70,6 +72,38 @@ export async function deleteTask(taskId: string): Promise<ActionResult> {
   const task = await prisma.task.findFirst({ where: { id: taskId, userId: user.id } });
   await prisma.task.deleteMany({ where: { id: taskId, userId: user.id } });
   await removeRowFromGoogle(user.id, task?.googleEventId ?? null);
+  revalidatePath('/tasks');
+  revalidatePath('/');
+  return { ok: true };
+}
+
+/** Label tenaga (1–3) dan usaha (menit). `null` mengosongkan; field yang tidak dikirim tidak diubah. */
+export async function setTaskLabels(taskId: string, labels: { energyNeed?: number | null; estimateMin?: number | null }): Promise<ActionResult> {
+  const user = await requireUser();
+  const data: { energyNeed?: number | null; estimateMin?: number | null; lastTouchedAt: Date } = { lastTouchedAt: new Date() };
+  if ('energyNeed' in labels) data.energyNeed = labels.energyNeed && labels.energyNeed >= 1 && labels.energyNeed <= 3 ? Math.round(labels.energyNeed) : null;
+  if ('estimateMin' in labels) data.estimateMin = labels.estimateMin && labels.estimateMin > 0 ? Math.min(600, Math.round(labels.estimateMin)) : null;
+  const r = await prisma.task.updateMany({ where: { id: taskId, userId: user.id }, data });
+  revalidatePath('/tasks');
+  revalidatePath('/');
+  return r.count ? { ok: true } : { ok: false, message: 'Tugas tidak ditemukan.' };
+}
+
+/** Kalender mingguan: taruh tugas di tanggal `ymd` (WIB), atau `null` untuk balik ke belum dijadwalkan. */
+export async function planTaskOn(taskId: string, ymd: string | null): Promise<ActionResult> {
+  const user = await requireUser();
+  if (ymd !== null && !/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return { ok: false, message: 'Tanggal tidak valid.' };
+  const task = await prisma.task.findFirst({ where: { id: taskId, userId: user.id } });
+  if (!task) return { ok: false, message: 'Tugas tidak ditemukan.' };
+  const plannedFor = ymd ? new Date(`${ymd}T00:00:00.000Z`) : null;
+  // Jam tenggat ikut pindah ke hari baru (jamnya tetap), supaya kalender dan Hari Ini sepakat.
+  let dueAt = task.dueAt;
+  if (dueAt && ymd) {
+    const wib = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Jakarta', hour: '2-digit', minute: '2-digit', hour12: false }).format(dueAt);
+    dueAt = new Date(`${ymd}T${wib}:00+07:00`);
+  }
+  const updated = await prisma.task.update({ where: { id: taskId }, data: { plannedFor, dueAt, lastTouchedAt: new Date() } });
+  if (dueAt?.getTime() !== task.dueAt?.getTime()) await pushTaskToGoogle(updated);
   revalidatePath('/tasks');
   revalidatePath('/');
   return { ok: true };

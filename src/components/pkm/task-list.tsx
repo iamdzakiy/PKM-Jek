@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Archive, CalendarClock, Check, ChevronDown, ListChecks, MapPin, Play, Timer } from 'lucide-react';
 import { archiveTask, deferTask, shiftTaskToToday, startSprint } from '@/app/actions/adhd';
-import { setTaskStatus } from '@/app/actions/tasks';
+import { setTaskLabels, setTaskStatus } from '@/app/actions/tasks';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/toast';
 import { EmptyState } from './empty-state';
@@ -13,6 +13,7 @@ import { FirstThreeSteps } from './first-three-steps';
 import { cn, formatDateTime } from '@/lib/utils';
 import { ENERGY_CHIP, ENERGY_LABEL, type Energy } from '@/lib/adhd/energy';
 import { urgencyOf } from '@/lib/adhd/urgency';
+import { EFFORT, cycle, effortLabel, needOf } from '@/lib/tasks/labels';
 
 type Status = 'OPEN' | 'IN_PROGRESS' | 'DONE';
 export interface TaskDTO {
@@ -25,7 +26,14 @@ export interface TaskDTO {
   energyType: Energy;
   firstSteps: string[];
   consequence: string | null;
+  tag: string | null;
+  /** tanggal WIB dari plannedFor, atau dari dueAt kalau belum direncanakan */
+  day: string | null;
+  estimateMin: number | null;
+  energyNeed: number | null;
 }
+
+export type TaskLabels = { energyNeed?: number | null; estimateMin?: number | null };
 
 export function TaskList({ initial }: { initial: TaskDTO[] }) {
   const toast = useToast();
@@ -44,6 +52,19 @@ export function TaskList({ initial }: { initial: TaskDTO[] }) {
     try {
       const r = await setTaskStatus(id, status);
       if (!r.ok) throw new Error(r.message);
+    } catch {
+      setTasks(before);
+      toast({ kind: 'error', message: 'Belum tersimpan. Coba sekali lagi?' });
+    }
+  }
+
+  async function label(id: string, labels: TaskLabels) {
+    const before = tasks;
+    setTasks((cur) => cur.map((t) => (t.id === id ? { ...t, ...labels } : t)));
+    try {
+      const r = await setTaskLabels(id, labels);
+      if (!r.ok) throw new Error(r.message);
+      router.refresh();
     } catch {
       setTasks(before);
       toast({ kind: 'error', message: 'Belum tersimpan. Coba sekali lagi?' });
@@ -91,6 +112,7 @@ export function TaskList({ initial }: { initial: TaskDTO[] }) {
               onShift={(id) => run(() => shiftTaskToToday(id))}
               onArchive={(id) => run(() => archiveTask(id), id)}
               onSprint={sprint}
+              onLabel={label}
             />
           ))}
         </AnimatePresence>
@@ -109,7 +131,7 @@ export function TaskList({ initial }: { initial: TaskDTO[] }) {
             {showDone && (
               <motion.ul initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="space-y-2 overflow-hidden">
                 {done.map((t) => (
-                  <TaskRow key={t.id} task={t} onStatus={setStatus} onDefer={() => undefined} onShift={() => undefined} onArchive={(id) => run(() => archiveTask(id), id)} onSprint={() => undefined} />
+                  <TaskRow key={t.id} task={t} onStatus={setStatus} onDefer={() => undefined} onShift={() => undefined} onArchive={(id) => run(() => archiveTask(id), id)} onSprint={() => undefined} onLabel={label} />
                 ))}
               </motion.ul>
             )}
@@ -127,6 +149,7 @@ function TaskRow({
   onShift,
   onArchive,
   onSprint,
+  onLabel,
 }: {
   task: TaskDTO;
   onStatus: (id: string, s: Status) => void;
@@ -134,6 +157,7 @@ function TaskRow({
   onShift: (id: string) => void;
   onArchive: (id: string) => void;
   onSprint: (t: TaskDTO) => void;
+  onLabel: (id: string, labels: TaskLabels) => void;
 }) {
   const isDone = task.status === 'DONE';
   const active = task.status === 'IN_PROGRESS';
@@ -167,10 +191,11 @@ function TaskRow({
         </button>
 
         <div className="min-w-0 flex-1">
-          <p className={cn('truncate text-sm font-medium transition-colors', isDone ? 'text-ink-faint line-through decoration-ink-faint/50' : 'text-ink')}>{task.title}</p>
+          <p className={cn('line-clamp-2 text-sm font-medium transition-colors', isDone ? 'text-ink-faint line-through decoration-ink-faint/50' : 'text-ink')}>{task.title}</p>
           <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-faint">
             <span className={cn('rounded-md px-1.5 py-0.5 text-[11px] font-medium', ENERGY_CHIP[task.energyType])}>{ENERGY_LABEL[task.energyType]}</span>
-            {task.project && <span>{task.project}</span>}
+            {!isDone && <LabelChips task={task} onLabel={onLabel} />}
+            {task.project && <span>{task.tag ? `#${task.tag}` : task.project}</span>}
             {task.dueAt && <span suppressHydrationWarning>{formatDateTime(task.dueAt)}</span>}
             {task.location && (
               <span className="inline-flex items-center gap-1">
@@ -191,7 +216,7 @@ function TaskRow({
           {active && <Badge tone="brand">dikerjakan</Badge>}
           {!isDone && (
             <>
-              <IconBtn label="Mulai sprint 25 menit" onClick={() => onSprint(task)}>
+              <IconBtn wide label="Mulai sprint 25 menit" onClick={() => onSprint(task)}>
                 <Timer size={14} />
               </IconBtn>
               <IconBtn label={active ? 'Hentikan pengerjaan' : 'Mulai kerjakan'} pressed={active} onClick={() => onStatus(task.id, active ? 'OPEN' : 'IN_PROGRESS')}>
@@ -202,7 +227,7 @@ function TaskRow({
               </IconBtn>
             </>
           )}
-          <IconBtn label="Arsipkan" onClick={() => onArchive(task.id)}>
+          <IconBtn wide label="Arsipkan" onClick={() => onArchive(task.id)}>
             <Archive size={14} />
           </IconBtn>
         </div>
@@ -213,7 +238,7 @@ function TaskRow({
   );
 }
 
-function IconBtn({ label, onClick, children, pressed }: { label: string; onClick: () => void; children: React.ReactNode; pressed?: boolean }) {
+function IconBtn({ label, onClick, children, pressed, wide }: { label: string; onClick: () => void; children: React.ReactNode; pressed?: boolean; wide?: boolean }) {
   return (
     <button
       type="button"
@@ -221,9 +246,36 @@ function IconBtn({ label, onClick, children, pressed }: { label: string; onClick
       aria-label={label}
       aria-pressed={pressed}
       title={label}
-      className={cn('grid h-8 w-8 place-items-center rounded-lg transition', pressed ? 'bg-brand-soft text-brand' : 'text-ink-faint hover:bg-surface-2 hover:text-ink')}
+      className={cn('h-8 w-8 place-items-center rounded-lg transition', wide ? 'hidden sm:grid' : 'grid', pressed ? 'bg-brand-soft text-brand' : 'text-ink-faint hover:bg-surface-2 hover:text-ink')}
     >
       {children}
     </button>
+  );
+}
+
+/** Chip tenaga & usaha yang bisa diketuk untuk berganti nilai (ketuk terakhir = kosong). */
+export function LabelChips({ task, onLabel }: { task: Pick<TaskDTO, 'id' | 'energyNeed' | 'estimateMin'>; onLabel: (id: string, labels: TaskLabels) => void }) {
+  const need = needOf(task.energyNeed);
+  const effort = effortLabel(task.estimateMin);
+  const chip = 'rounded-md px-1.5 py-0.5 text-[11px] font-medium transition';
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => onLabel(task.id, { energyNeed: cycle([1, 2, 3] as const, (task.energyNeed as 1 | 2 | 3 | null) ?? null) })}
+        title={need ? `Tenaga: ${need.label}. Ketuk buat ganti.` : 'Kasih label tenaga'}
+        className={cn(chip, need ? 'bg-surface-2 text-ink' : 'border border-dashed border-line text-ink-faint hover:text-ink')}
+      >
+        {need ? `${need.emoji} ${need.label}` : '+ tenaga'}
+      </button>
+      <button
+        type="button"
+        onClick={() => onLabel(task.id, { estimateMin: cycle(EFFORT, (EFFORT as readonly number[]).includes(task.estimateMin ?? -1) ? (task.estimateMin as (typeof EFFORT)[number]) : null) })}
+        title={effort ? `Usaha: ±${effort}. Ketuk buat ganti.` : 'Kasih estimasi usaha'}
+        className={cn(chip, effort ? 'bg-surface-2 text-ink' : 'border border-dashed border-line text-ink-faint hover:text-ink')}
+      >
+        {effort ? `±${effort}` : '+ usaha'}
+      </button>
+    </>
   );
 }

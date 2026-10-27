@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/current-user';
+import { needOf } from '@/lib/tasks/labels';
 import { APP_LOCALE, APP_TZ, greeting } from '@/lib/utils';
 import { dayAsDate, jakartaDay } from '@/lib/adhd/progress';
 import { habitDue, heatRank, isoWeekday, jakartaMinutes, minutesOfDay } from '@/lib/adhd/today';
@@ -107,11 +108,12 @@ export default async function TodayPage() {
       title: t.title,
       minute: t.dueAt && !overdue ? jakartaMinutes(t.dueAt) : null,
       done: t.status === 'DONE',
-      sub: [t.project?.tag && `#${t.project.tag}`, t.location ?? (t.estimateMin ? `±${t.estimateMin} menit` : null)].filter(Boolean).join(' · ') || null,
+      sub: [needOf(t.energyNeed)?.emoji, t.project?.tag && `#${t.project.tag}`, t.location ?? (t.estimateMin ? `±${t.estimateMin} menit` : null)].filter(Boolean).join(' · ') || null,
       heat: overdue ? 'warm' : 'due',
       heatLabel: overdue ? 'Kelewat, geser ke hari ini?' : null,
       overdue,
-      sortHeat: overdue ? 0 : 2,
+      // Energi lagi habis: tugas ringan naik, yang berat turun ke belakang antrean.
+      sortHeat: overdue ? 0 : checkin?.energy === 1 && t.energyNeed ? [1, 2, 6][t.energyNeed - 1] : 2,
       estimate: t.estimateMin ?? 30,
     });
   }

@@ -158,6 +158,8 @@ model Task {
   // Hari Ini: dipilih jadi fokus untuk tanggal (WIB) ini, plus estimasi durasi
   plannedFor    DateTime?  @db.Date
   estimateMin   Int?
+  /// tenaga yang dibutuhkan: 1 ringan, 2 sedang, 3 berat (skala sama dengan check-in energi)
+  energyNeed    Int?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
