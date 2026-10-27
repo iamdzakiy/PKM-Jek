@@ -9,6 +9,7 @@ import { awardWin, dayAsDate, jakartaDay } from '@/lib/adhd/progress';
 import { minutesOfDay } from '@/lib/adhd/today';
 import { STARTER_HABITS, installMorningSources, installRoles, upsertHabits } from '@/lib/adhd/starter';
 import { XP } from '@/lib/adhd/xp';
+import { appendToDaily } from '@/lib/notes/daily';
 import type { ActionResult } from '@/lib/types';
 
 const FAIL = 'Belum tersimpan. Coba sekali lagi?';
@@ -171,6 +172,7 @@ export async function closeDay(formData: FormData): Promise<ActionResult> {
     update: { journal: journal ?? existing?.journal ?? null, meditationMin: meditationMin ?? existing?.meditationMin ?? null, closedAt: new Date() },
     create: { userId: user.id, date, journal, meditationMin, closedAt: new Date() },
   });
+  if (journal) await appendToDaily(user.id, jakartaDay(), 'Tutup hari', parts.map((p, i) => (p ? `- ${labels[i]}: ${p}` : '')).filter(Boolean).join('\n'));
   if (!existing?.closedAt) await awardWin(user.id, 'Tutup Hari', 'reset', XP.reset);
   revalidateToday();
   return { ok: true, message: 'Hari ditutup. Istirahat, kamu udah cukup.' };
