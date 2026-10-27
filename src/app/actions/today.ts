@@ -85,6 +85,37 @@ export async function planTask(taskId: string, when: 'today' | 'tomorrow' | 'non
   return { ok: true, message: when === 'today' ? 'Masuk Hari Ini.' : when === 'tomorrow' ? 'Digeser ke besok.' : 'Balik ke inbox.' };
 }
 
+/**
+ * "Bukan hari ini" / "Nanti": geser tugas `days` hari ke depan. Jam tenggat
+ * yang jatuh sebelum hari itu ikut pindah (jamnya tetap) supaya tidak muncul
+ * lagi di Hari Ini sebagai "lewat".
+ */
+export async function deferTask(taskId: string, days = 1): Promise<ActionResult> {
+  const user = await requireUser();
+  const task = await prisma.task.findFirst({ where: { id: taskId, userId: user.id } });
+  if (!task) return { ok: false, message: FAIL };
+  const step = Math.min(30, Math.max(1, Math.round(days))) * 86_400_000;
+  const plannedFor = new Date(todayDate().getTime() + step);
+  const dayStart = new Date(`${jakartaDay()}T00:00:00+07:00`).getTime() + step;
+  let dueAt = task.dueAt;
+  if (dueAt && dueAt.getTime() < dayStart) {
+    const timeOfDay = (dueAt.getTime() - new Date(`${jakartaDay(dueAt)}T00:00:00+07:00`).getTime()) % 86_400_000;
+    dueAt = new Date(dayStart + timeOfDay);
+  }
+  const updated = await prisma.task.update({ where: { id: taskId }, data: { plannedFor, dueAt, lastTouchedAt: new Date() } });
+  if (dueAt !== task.dueAt) await pushTaskToGoogle(updated);
+  revalidateToday();
+  return { ok: true, message: days === 1 ? 'Oke, besok aja.' : `Disimpan buat ${days} hari lagi.` };
+}
+
+/** Buang dari inbox (diarsipkan, masih bisa dicari). */
+export async function dropTask(taskId: string): Promise<ActionResult> {
+  const user = await requireUser();
+  const res = await prisma.task.updateMany({ where: { id: taskId, userId: user.id }, data: { archived: true, lastTouchedAt: new Date() } });
+  revalidateToday();
+  return res.count ? { ok: true, message: 'Dibuang. Masih bisa dicari kalau perlu.' } : { ok: false, message: FAIL };
+}
+
 export async function toggleTaskDone(taskId: string, done: boolean): Promise<ActionResult> {
   const user = await requireUser();
   const task = await prisma.task.findFirst({ where: { id: taskId, userId: user.id } });

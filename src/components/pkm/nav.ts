@@ -1,4 +1,4 @@
-import { BrainCircuit, ClipboardCheck, Dumbbell, CalendarCheck, Flower2, Inbox, Radar, Repeat, Timer, TrendingUp, CalendarClock, CalendarDays, FolderKanban, Hash, LayoutDashboard, ListChecks, NotebookText, SlidersHorizontal, Users, type LucideIcon } from 'lucide-react';
+import { BrainCircuit, ClipboardCheck, Dumbbell, CalendarCheck, Flower2, Inbox, Radar, Repeat, Timer, TrendingUp, CalendarDays, FolderKanban, Hash, LayoutDashboard, ListChecks, NotebookText, SlidersHorizontal, Settings, Users, type LucideIcon } from 'lucide-react';
 
 export interface NavItem {
   href: string;
@@ -43,7 +43,7 @@ export const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
     items: [
       { href: '/memory', label: 'Memori', icon: LayoutDashboard },
       { href: '/engine', label: 'Pembobotan', icon: SlidersHorizontal },
-      { href: '/settings/google', label: 'Google Calendar', icon: CalendarClock },
+      { href: '/settings', label: 'Pengaturan', icon: Settings },
     ],
   },
 ];
