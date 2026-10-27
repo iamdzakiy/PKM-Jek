@@ -2,6 +2,8 @@ import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/current-user';
 import { createAdminSource } from '@/app/actions/adhd';
+import { installMorningPack } from '@/app/actions/today';
+import { MORNING_SOURCES } from '@/lib/adhd/starter';
 import { PageHeader } from '@/components/pkm/page-header';
 import { AdminStartButton } from '@/components/pkm/admin-start-button';
 import { ActionForm, SubmitButton } from '@/components/ui/form';
@@ -20,14 +22,28 @@ export default async function AdminPage() {
 
   return (
     <>
-      <PageHeader title="Sweep Admin" description="Satu sesi singkat untuk memeriksa semua kotak masuk sekaligus. Sisanya tidak perlu dipikirkan." actions={<AdminStartButton disabled={sources.length === 0} />} />
+      <PageHeader title="Admin" description="Cek semua kotak masuk sekali jalan, lalu lupakan sampai sesi berikutnya." actions={<AdminStartButton disabled={sources.length === 0} />} />
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <Card>
-          <CardTitle className="mb-4">Sumber</CardTitle>
+          <CardTitle className="mb-4">Sumber cek pagi</CardTitle>
+          {MORNING_SOURCES.some((m) => !sources.some((s) => s.name.toLowerCase() === m.name.toLowerCase())) && (
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-info-soft/60 px-3 py-2.5">
+              <p className="text-sm text-ink-soft">WA, Outlook, Gmail, LINE, IG, Edunex, info peluang</p>
+              <ActionForm action={installMorningPack}>
+                <SubmitButton>Pasang semua</SubmitButton>
+              </ActionForm>
+            </div>
+          )}
           <ul className="mb-4 space-y-2">
             {sources.map((s) => (
               <li key={s.id} className="flex items-center justify-between rounded-lg bg-surface-2/60 px-3 py-2 text-sm">
-                <span className="text-ink">{s.name}</span>
+                {s.url ? (
+                  <a href={s.url} target="_blank" rel="noreferrer" className="text-ink underline-offset-2 hover:text-brand hover:underline">
+                    {s.name}
+                  </a>
+                ) : (
+                  <span className="text-ink">{s.name}</span>
+                )}
                 <span className="text-xs text-ink-faint">{s.kind}</span>
               </li>
             ))}

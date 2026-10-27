@@ -28,7 +28,7 @@ export default async function GoogleSettingsPage({ searchParams }: { searchParam
 
   return (
     <>
-      <PageHeader title="Google Calendar" description="Sinkron dua arah: acara dan tugas yang jatuh tempo mengalir ke Google Calendar, dan perubahan di sana mengalir kembali." />
+      <PageHeader title="Google Calendar" description="Sinkron dua arah. Tugas berjam masuk kalender, perubahan di sana balik ke sini." />
 
       {flash && (
         <div

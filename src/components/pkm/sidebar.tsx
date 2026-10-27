@@ -78,10 +78,10 @@ export function AccountBlock({ email }: { email: string }) {
 
 export function Sidebar({ email }: { email: string }) {
   return (
-    <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col gap-6 border-r border-line bg-surface px-3.5 py-5 md:flex">
-      <Link href="/" className="flex items-center gap-2.5 px-2" aria-label="Second Brain, ke dashboard">
+    <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col gap-6 rounded-none border-y-0 border-l-0 px-3.5 py-5 glass md:flex">
+      <Link href="/" className="flex items-center gap-2.5 px-2" aria-label="Star Command, ke Hari Ini">
         <BrandMark size={30} />
-        <span className="font-heading text-[15px] font-bold tracking-tight text-ink">Second Brain</span>
+        <span className="font-heading text-[15px] font-bold tracking-tight text-ink">Star Command</span>
       </Link>
       <SidebarNav />
       <AccountBlock email={email} />

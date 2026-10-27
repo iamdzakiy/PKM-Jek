@@ -22,7 +22,7 @@ export default async function PeoplePage() {
 
   return (
     <>
-      <PageHeader title="Orang" description="Hubungkan catatan ke orang penting. Semakin tinggi kepentingannya, semakin besar Social Graph pada Preservation Value." />
+      <PageHeader title="Orang" description="Orang penting dan catatan yang terhubung dengan mereka." />
 
       <Card className="mb-6">
         <ActionForm action={createPerson} className="grid grid-cols-1 gap-4 sm:grid-cols-[1fr,1fr,140px,auto] sm:items-end">

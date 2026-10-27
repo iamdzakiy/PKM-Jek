@@ -80,7 +80,7 @@ export function RecallDeck({ items }: { items: RecallItem[] }) {
                 {correct} dari {total} kamu ingat dengan benar. Yang salah kembali besok, yang benar menunggu lebih lama.
               </p>
               <Link href="/" className="mt-6 inline-flex h-10 items-center gap-2 rounded-xl bg-brand-solid px-4 text-sm font-medium text-white hover:brightness-110">
-                Kembali ke dashboard <ArrowRight size={15} />
+                Kembali ke Hari Ini <ArrowRight size={15} />
               </Link>
             </Card>
           </motion.div>

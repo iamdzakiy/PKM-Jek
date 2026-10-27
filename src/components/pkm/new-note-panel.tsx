@@ -59,7 +59,7 @@ export function NewNotePanel({ projects, defaultOpen = false }: { projects: { id
                   </Select>
                 </Field>
                 <Field label="Topik" htmlFor="topics" hint="Pisahkan dengan koma">
-                  <Input id="topics" name="topics" placeholder="Managed Forgetting, PIMO" />
+                  <Input id="topics" name="topics" placeholder="bt5131, ide-bisnis" />
                 </Field>
                 <Field label="Lokasi" htmlFor="location">
                   <Input id="location" name="location" placeholder="mis. Lab Komputer, Bandung" />

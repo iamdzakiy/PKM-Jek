@@ -7,30 +7,42 @@
    dan tidak putih penuh, agar tidak silau dan tidak melelahkan mata.
    Nilai berupa RGB dipisah spasi supaya modifier alpha Tailwind berfungsi. */
 :root {
-  /* "Pagi lembut" */
-  --bg: 233 237 245;
-  --surface: 244 246 251;
-  --surface-2: 223 229 240;
-  --ink: 30 41 59;
-  --ink-soft: 63 77 99;
-  --ink-faint: 90 103 125;
-  --line: 205 213 228;
-  --brand: 41 67 173;
-  --brand-solid: 51 82 205;
-  --brand-soft: 224 232 252;
-  --mint: 15 126 94;
-  --mint-soft: 207 238 226;
-  --warn: 150 92 10;
-  --warn-soft: 250 236 200;
-  --danger: 160 60 60; /* dilembutkan, bukan merah murni */
-  --danger-soft: 244 224 224;
-  --shadow: 30 41 59;
+  /* ── Star Command OS · "Hull White" (siang) ─────────────────────────────
+     Palet jas Buzz Lightyear: Ranger Green, Star Command Purple, Warp Gold,
+     Laser Red, Hyperdrive Blue. Warna teks digelapkan seperlunya supaya
+     kontras tetap AA (≥ 4.5:1); versi neon dipakai untuk isian/aksen. */
+  --bg: 248 249 250; /* #F8F9FA */
+  --surface: 255 255 255;
+  --surface-2: 238 240 246;
+  --ink: 17 20 32;
+  --ink-soft: 64 70 92;
+  --ink-faint: 104 110 132;
+  --line: 222 226 236;
+  --brand: 107 45 130; /* Star Command Purple #6B2D82 */
+  --brand-solid: 123 31 162; /* #7B1FA2 */
+  --brand-soft: 242 231 248;
+  --mint: 46 125 30; /* Ranger Green, versi teks */
+  --mint-soft: 224 245 216;
+  --ranger: 67 176 42; /* #43B02A, isian tombol & centang */
+  --warn: 150 98 0; /* Warp Gold, versi teks */
+  --warn-soft: 255 241 204;
+  --gold: 255 184 28; /* #FFB81C */
+  --danger: 200 0 0; /* Laser Red */
+  --danger-soft: 253 226 226;
+  --info: 0 118 168; /* Hyperdrive Blue, versi teks */
+  --info-soft: 219 242 252;
+  --shadow: 40 20 60;
+  --glass: 255 255 255;
+  --glass-alpha: 0.66;
+  --glass-edge: 17 20 32;
+  --glass-edge-alpha: 0.07;
+  --glow-a: 123 31 162;
+  --glow-b: 67 176 42;
 
-  /* Energi: pastel hangat sampai sejuk, tidak ada merah */
-  --energy-urgent: 243 201 168;
-  --energy-deadline: 201 214 247;
-  --energy-admin: 217 222 232;
-  --energy-creative: 189 235 216;
+  --energy-urgent: 255 205 190;
+  --energy-deadline: 222 205 240;
+  --energy-admin: 222 226 236;
+  --energy-creative: 205 238 196;
 
   --font-inter: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-jakarta: 'Plus Jakarta Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
@@ -38,29 +50,39 @@
 }
 
 .dark {
-  /* "Senja": navy tengah, bukan hampir hitam */
-  --bg: 30 39 60;
-  --surface: 40 51 78;
-  --surface-2: 50 63 94;
-  --ink: 218 226 240;
-  --ink-soft: 166 180 204;
-  --ink-faint: 140 154 180;
-  --line: 66 80 114;
-  --brand: 160 180 245;
-  --brand-solid: 70 100 215;
-  --brand-soft: 44 60 112;
-  --mint: 110 224 186;
-  --mint-soft: 38 70 84;
-  --warn: 240 196 100;
-  --warn-soft: 70 58 40;
-  --danger: 232 150 150;
-  --danger-soft: 70 42 56;
+  /* ── "Deep Void" (malam, OLED) #0B0E14 ── */
+  --bg: 11 14 20;
+  --surface: 22 26 37;
+  --surface-2: 33 38 52;
+  --ink: 238 240 247;
+  --ink-soft: 176 182 202;
+  --ink-faint: 136 142 164;
+  --line: 46 52 70;
+  --brand: 206 160 236;
+  --brand-solid: 123 31 162;
+  --brand-soft: 50 26 66;
+  --mint: 120 236 88; /* mendekati #39FF14, tidak menyilaukan */
+  --mint-soft: 24 54 26;
+  --ranger: 67 176 42;
+  --warn: 255 215 0; /* #FFD700 */
+  --warn-soft: 58 46 8;
+  --gold: 255 184 28;
+  --danger: 255 92 92; /* #FF2A2A dilembutkan untuk teks */
+  --danger-soft: 66 16 22;
+  --info: 0 200 255; /* #00C8FF */
+  --info-soft: 6 44 60;
   --shadow: 0 0 0;
+  --glass: 26 30 44;
+  --glass-alpha: 0.58;
+  --glass-edge: 255 255 255;
+  --glass-edge-alpha: 0.09;
+  --glow-a: 123 31 162;
+  --glow-b: 57 255 20;
 
-  --energy-urgent: 138 90 60;
-  --energy-deadline: 58 79 148;
-  --energy-admin: 58 70 94;
-  --energy-creative: 45 107 88;
+  --energy-urgent: 110 50 40;
+  --energy-deadline: 70 40 100;
+  --energy-admin: 46 52 70;
+  --energy-creative: 34 90 40;
   color-scheme: dark;
 }
 
@@ -71,6 +93,11 @@
   body {
     @apply bg-bg font-sans text-ink antialiased;
     font-feature-settings: 'cv11', 'ss01';
+    /* Nebula halus di belakang kaca: ungu kiri atas, hijau kanan bawah. */
+    background-image:
+      radial-gradient(60rem 40rem at -10% -10%, rgb(var(--glow-a) / 0.16), transparent 60%),
+      radial-gradient(50rem 36rem at 110% 110%, rgb(var(--glow-b) / 0.10), transparent 60%);
+    background-attachment: fixed;
   }
   h1,
   h2,
@@ -92,6 +119,17 @@
 }
 
 @layer utilities {
+  /* Liquid glass: permukaan tembus pandang + blur + tepi tipis berkilau. */
+  .glass {
+    background: rgb(var(--glass) / var(--glass-alpha));
+    -webkit-backdrop-filter: blur(22px) saturate(170%);
+    backdrop-filter: blur(22px) saturate(170%);
+    border: 1px solid rgb(var(--glass-edge) / var(--glass-edge-alpha));
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.18),
+      0 1px 2px rgb(var(--shadow) / 0.06),
+      0 12px 32px -16px rgb(var(--shadow) / 0.28);
+  }
   .tabular {
     font-variant-numeric: tabular-nums;
   }
@@ -128,4 +166,13 @@ input[type='date'] {
   html {
     scroll-behavior: auto;
   }
+}
+
+html[data-motion='reduce'] *,
+html[data-motion='reduce'] *::before,
+html[data-motion='reduce'] *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
 }

@@ -35,7 +35,7 @@ function LoginForm() {
     <div className="w-full max-w-sm">
       <div className="mb-8 flex items-center gap-3 lg:hidden">
         <BrandMark size={34} />
-        <span className="font-heading text-lg font-bold text-ink">Second Brain</span>
+        <span className="font-heading text-lg font-bold text-ink">Star Command</span>
       </div>
 
       <h1 className="font-heading text-[28px] font-bold tracking-tight text-ink">Masuk</h1>
@@ -95,7 +95,7 @@ export default function LoginPage() {
         <div className="pointer-events-none absolute -left-32 -top-32 h-96 w-96 rounded-full bg-brand-solid/20 blur-[120px]" aria-hidden="true" />
         <div className="relative flex items-center gap-3">
           <BrandMark size={36} />
-          <span className="font-heading text-lg font-bold text-white">Second Brain</span>
+          <span className="font-heading text-lg font-bold text-white">Star Command</span>
         </div>
 
         <div className="relative">
@@ -112,7 +112,7 @@ export default function LoginPage() {
           </div>
         </div>
 
-        <p className="relative text-xs text-slate-500">Memory Buoyancy · Preservation Value · Managed Forgetting</p>
+        <p className="relative text-xs text-slate-500">Misi · Habit · Catatan · Kalender</p>
       </section>
 
       <section className="flex items-center justify-center px-6 py-12">

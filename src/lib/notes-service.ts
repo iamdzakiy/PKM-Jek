@@ -9,18 +9,43 @@ export function asNoteType(value: unknown): NoteType {
   return NOTE_TYPES.includes(value as NoteType) ? (value as NoteType) : 'NOTE';
 }
 
-/** "#Managed Forgetting, pimo" -> ["Managed Forgetting", "pimo"], de-duplicated, max 8. */
+/**
+ * Satu bentuk untuk semua tag: huruf kecil, spasi jadi "-", tanpa "#".
+ * "#Managed Forgetting" -> "managed-forgetting", "BT5131" -> "bt5131".
+ */
+export function normalizeTag(raw: string): string {
+  return raw
+    .trim()
+    .replace(/^#+/, '')
+    .toLowerCase()
+    .replace(/\s+/g, '-')
+    .replace(/[^\p{L}\p{N}_-]/gu, '')
+    .replace(/-{2,}/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 40);
+}
+
+/** "#Managed Forgetting, pimo" -> ["managed-forgetting", "pimo"], tanpa duplikat, maks 8. */
 export function parseTopicNames(raw: string): string[] {
-  const seen = new Set<string>();
-  const out: string[] = [];
+  const out = new Set<string>();
   for (const part of raw.split(',')) {
-    const name = part.trim().replace(/^#+/, '').slice(0, 40);
-    const key = name.toLowerCase();
-    if (!name || seen.has(key)) continue;
-    seen.add(key);
-    out.push(name);
+    const name = normalizeTag(part);
+    if (name) out.add(name);
   }
-  return out.slice(0, 8);
+  return Array.from(out).slice(0, 8);
+}
+
+/**
+ * Cari topik tanpa peduli huruf besar/kecil, supaya topik lama ("PIMO")
+ * dipakai ulang alih-alih membuat kembarannya ("pimo").
+ */
+export async function resolveTopic(userId: string, rawName: string, isHot?: boolean) {
+  const name = normalizeTag(rawName);
+  const existing = await prisma.topic.findFirst({ where: { userId, name: { equals: name, mode: 'insensitive' } } });
+  if (existing) {
+    return isHot === undefined || existing.isHot === isHot ? existing : prisma.topic.update({ where: { id: existing.id }, data: { isHot } });
+  }
+  return prisma.topic.create({ data: { userId, name, isHot: isHot ?? false } });
 }
 
 export interface NewNoteInput {
@@ -45,11 +70,7 @@ export async function createNoteRecord(input: NewNoteInput) {
 
   const topicIds: string[] = [];
   for (const name of input.topicNames ?? []) {
-    const topic = await prisma.topic.upsert({
-      where: { userId_name: { userId, name } },
-      update: {},
-      create: { userId, name },
-    });
+    const topic = await resolveTopic(userId, name);
     topicIds.push(topic.id);
   }
 

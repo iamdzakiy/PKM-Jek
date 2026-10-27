@@ -5,7 +5,7 @@
   "description": "Private personal knowledge management app with AI-augmented memory (Memory Buoyancy, Preservation Value, Managed Forgetting, Spaced Repetition).",
   "scripts": {
     "dev": "next dev",
-    "build": "prisma generate && prisma migrate deploy && next build",
+    "build": "prisma generate && node scripts/migrate-deploy.mjs && next build",
     "start": "next start",
     "lint": "next lint",
     "prisma:generate": "prisma generate",

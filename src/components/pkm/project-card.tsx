@@ -8,7 +8,7 @@ import { useToast } from '@/components/ui/toast';
 
 type Status = 'ACTIVE' | 'COMPLETED' | 'ARCHIVED';
 
-export function ProjectCard({ id, name, description, status, notes, tasks }: { id: string; name: string; description: string | null; status: Status; notes: number; tasks: number }) {
+export function ProjectCard({ id, name, tag, description, status, notes, tasks }: { id: string; name: string; tag?: string | null; description: string | null; status: Status; notes: number; tasks: number }) {
   const toast = useToast();
   const [value, setValue] = useState<Status>(status);
 
@@ -26,7 +26,10 @@ export function ProjectCard({ id, name, description, status, notes, tasks }: { i
 
   return (
     <Card className="flex h-full flex-col">
-      <h3 className="font-heading text-base font-semibold text-ink">{name}</h3>
+      <div className="flex items-start justify-between gap-2">
+        <h3 className="font-heading text-base font-semibold text-ink">{name}</h3>
+        {tag && <span className="shrink-0 rounded-md bg-brand-soft px-1.5 py-0.5 text-xs font-semibold text-brand">#{tag}</span>}
+      </div>
       {description ? <p className="mt-1.5 line-clamp-3 text-sm leading-relaxed text-ink-soft">{description}</p> : <p className="mt-1.5 text-sm text-ink-faint">Tanpa deskripsi.</p>}
       <p className="mt-3 text-xs text-ink-faint tabular">
         {notes} catatan · {tasks} tugas

@@ -7,7 +7,7 @@ import { EmptyState } from '@/components/pkm/empty-state';
 import { formatDate } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: 'Active Recall' };
+export const metadata = { title: 'Recall' };
 
 export default async function RecallPage() {
   const user = await requireUser();
@@ -32,8 +32,8 @@ export default async function RecallPage() {
   return (
     <>
       <PageHeader
-        title="Active Recall"
-        description="Jawab dari ingatan sebelum melihat jawaban. Jadwalnya H+1, H+7, H+30, lalu makin jarang."
+        title="Recall"
+        description="Jawab dari ingatan dulu, baru lihat. Ulang di H+1, H+7, H+30."
       />
       {due.length === 0 ? (
         <EmptyState

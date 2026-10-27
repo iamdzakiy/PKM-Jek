@@ -46,7 +46,7 @@ export function NotesBoard({ notes, initialView = 'visible' }: { notes: NoteDTO[
   }, [notes, view, type, query]);
 
   if (notes.length === 0) {
-    return <EmptyState icon={NotebookText} title="Belum ada catatan" description="Tekan Ctrl K di mana saja untuk menangkap catatan pertamamu. Ia langsung masuk ke Last Focus." />;
+    return <EmptyState icon={NotebookText} title="Belum ada catatan" description="Tekan Ctrl K di mana aja buat nangkep catatan pertamamu." />;
   }
 
   return (
