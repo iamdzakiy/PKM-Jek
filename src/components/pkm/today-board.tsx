@@ -4,14 +4,17 @@ import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ArrowUpRight, BrainCircuit, CalendarDays, Check, ChevronDown, Clock, Flame, GripVertical, Inbox, LayoutGrid, ListTree, Moon, Plus, Rocket, Shield, Sparkles, Volume2, VolumeX, Zap } from 'lucide-react';
-import { addTodayTask, closeDay, installStarterPack, planTask, scheduleTaskAt, setTodayEnergy, toggleHabitToday, toggleTaskDone } from '@/app/actions/today';
+import { ArrowUpRight, BrainCircuit, CalendarDays, CalendarX2, Check, ChevronDown, Clock, Flame, GripVertical, Inbox, LayoutGrid, ListTree, Moon, Plus, Rocket, Shield, SkipForward, Sparkles, Target, Volume2, VolumeX, Zap } from 'lucide-react';
+import { addTodayTask, closeDay, deferTask, installStarterPack, planTask, scheduleTaskAt, setTodayEnergy, toggleHabitToday, toggleTaskDone } from '@/app/actions/today';
 import { ActionForm, SubmitButton } from '@/components/ui/form';
 import { Input, Select, Textarea } from '@/components/ui/input';
 import { useToast } from '@/components/ui/toast';
 import { EASE } from '@/components/motion/primitives';
 import { hhmm, jakartaMinutes, minutesOfDay, WEEKDAY_SHORT, type HabitHeat } from '@/lib/adhd/today';
+import { usePrefs } from '@/lib/prefs';
 import { cn, formatDate } from '@/lib/utils';
+import { FocusMode } from './focus-mode';
+import { InboxSweep } from './inbox-sweep';
 
 export interface TodayItem {
   key: string;
@@ -54,8 +57,6 @@ export interface TodayData {
   recallDue: number;
 }
 
-/** Batas realistis kerja fokus per hari (Sunsama): 5 jam. */
-const FUEL_CAP_MIN = 300;
 const HOURS = Array.from({ length: 19 }, (_, i) => i + 5); // 05:00–23:00
 
 const ENERGY = [
@@ -83,6 +84,29 @@ function writeLocal(key: string, value: string) {
   }
 }
 
+/** Kumpulan kunci per hari di localStorage (Skip, Bukan hari ini): reset sendiri besoknya. */
+function useDaySet(name: string, ymd: string) {
+  const key = `sc-${name}-${ymd}`;
+  const [keys, setKeys] = useState<string[]>([]);
+  useEffect(() => {
+    try {
+      setKeys(JSON.parse(readLocal(key) ?? '[]') as string[]);
+    } catch {
+      setKeys([]);
+    }
+  }, [key]);
+  const add = useCallback(
+    (k: string) =>
+      setKeys((prev) => {
+        const next = [...prev.filter((x) => x !== k), k];
+        writeLocal(key, JSON.stringify(next));
+        return next;
+      }),
+    [key]
+  );
+  return [keys, add] as const;
+}
+
 /** Menit WIB sekarang, diperbarui tiap menit supaya "Sekarang" ikut bergeser. */
 function useNowMinute() {
   const [now, setNow] = useState<number | null>(null);
@@ -97,15 +121,9 @@ function useNowMinute() {
 
 /** Bunyi "pop" kecil saat misi selesai. Web Audio, tanpa file, bisa dimatikan. */
 function usePop() {
-  const [on, setOn] = useState(true);
+  const [{ sound: on }, setPrefs] = usePrefs();
   const ctx = useRef<AudioContext | null>(null);
-  useEffect(() => setOn(readLocal('sc-sound') !== 'off'), []);
-  const toggle = useCallback(() => {
-    setOn((v) => {
-      writeLocal('sc-sound', v ? 'off' : 'on');
-      return !v;
-    });
-  }, []);
+  const toggle = useCallback(() => setPrefs({ sound: !on }), [on, setPrefs]);
   const pop = useCallback(
     (big = false) => {
       if (!on || typeof window === 'undefined') return;
@@ -147,6 +165,12 @@ export function TodayBoard({ data }: { data: TodayData }) {
   const [energy, setEnergy] = useState<number | null>(data.energy);
   const [burst, setBurst] = useState<string | null>(null);
   const [view, setView] = useState<View>('cockpit');
+  const [prefs] = usePrefs();
+  const ymd = data.week.find((w) => w.isToday)?.ymd ?? 'today';
+  const [skipped, skip] = useDaySet('skip', ymd);
+  const [notToday, hideToday] = useDaySet('nottoday', ymd);
+  const [focusing, setFocusing] = useState<TodayItem | null>(null);
+  const [sweeping, setSweeping] = useState(false);
 
   useEffect(() => {
     const v = readLocal('sc-view');
@@ -169,7 +193,7 @@ export function TodayBoard({ data }: { data: TodayData }) {
     () => data.items.map((i) => ({ ...i, done: doneMap[i.key] ?? i.done, minute: i.key in minuteMap ? minuteMap[i.key] : i.minute })),
     [data.items, doneMap, minuteMap]
   );
-  const checkable = items.filter((i) => i.kind !== 'event');
+  const checkable = items.filter((i) => i.kind !== 'event' && (i.done || !notToday.includes(i.key)));
   const doneCount = checkable.filter((i) => i.done).length;
   const total = checkable.length;
   const allDone = total > 0 && doneCount === total;
@@ -182,8 +206,11 @@ export function TodayBoard({ data }: { data: TodayData }) {
     const timed = open.filter((i) => i.minute !== null && i.minute >= nowMin - 120).sort((a, b) => a.minute! - b.minute!);
     const loose = open.filter((i) => i.minute === null).sort((a, b) => a.sortHeat - b.sortHeat);
     const missed = open.filter((i) => i.minute !== null && i.minute < nowMin - 120);
-    return [...timed, ...loose, ...missed];
-  }, [items, nowMin]);
+    // Skip = pindah ke paling belakang (urutan skip dipertahankan); Bukan hari ini = keluar dari antrean.
+    const ordered = [...timed, ...loose, ...missed].filter((i) => !notToday.includes(i.key));
+    const rank = (i: TodayItem) => skipped.indexOf(i.key);
+    return [...ordered.filter((i) => rank(i) < 0), ...ordered.filter((i) => rank(i) >= 0).sort((a, b) => rank(a) - rank(b))];
+  }, [items, nowMin, skipped, notToday]);
 
   async function toggle(item: TodayItem, mini = false) {
     const nextDone = !item.done;
@@ -235,6 +262,22 @@ export function TodayBoard({ data }: { data: TodayData }) {
     startTransition(() => router.refresh());
   }
 
+  async function notTodayFor(item: TodayItem) {
+    hideToday(item.key);
+    if (item.kind !== 'task') {
+      toast({ message: `${item.title} libur hari ini. Besok jalan lagi.` });
+      return;
+    }
+    const r = await deferTask(item.id, 1);
+    if (r.message) toast({ message: r.message, kind: r.ok ? 'success' : 'error' });
+    startTransition(() => router.refresh());
+  }
+
+  function closeSweep(changed: boolean) {
+    setSweeping(false);
+    if (changed) startTransition(() => router.refresh());
+  }
+
   const evening = nowMin !== null && nowMin >= 18 * 60;
 
   return (
@@ -269,7 +312,7 @@ export function TodayBoard({ data }: { data: TodayData }) {
         </h1>
       </div>
 
-      <Hud data={data} doneCount={doneCount} total={total} fuel={fuel} />
+      <Hud data={data} doneCount={doneCount} total={total} fuel={fuel} capMin={prefs.capHours * 60} />
 
       <AnimatePresence mode="wait" initial={false}>
         {view === 'cockpit' ? (
@@ -281,7 +324,7 @@ export function TodayBoard({ data }: { data: TodayData }) {
             ) : data.habitCount === 0 && total === 0 ? (
               <StarterCta />
             ) : queue[0] ? (
-              <MissionCard item={queue[0]} nowMin={nowMin} low={low} onDone={() => toggle(queue[0])} />
+              <MissionCard key={queue[0].key} item={queue[0]} nowMin={nowMin} low={low} onDone={() => toggle(queue[0])} onFocus={() => setFocusing(queue[0])} onSkip={queue.length > 1 ? () => skip(queue[0].key) : undefined} onNotToday={() => notTodayFor(queue[0])} />
             ) : null}
 
             {evening && !data.closed ? (
@@ -299,9 +342,17 @@ export function TodayBoard({ data }: { data: TodayData }) {
               )
             )}
 
+            {data.inbox.length > 0 && (
+              <button type="button" onClick={() => setSweeping(true)} className="glass flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm transition hover:ring-1 hover:ring-brand/40">
+                <Inbox size={18} className="shrink-0 text-brand" />
+                <span className="flex-1 text-ink">
+                  {data.inbox.length} pikiran di inbox <span className="text-ink-faint">· proses satu-satu</span>
+                </span>
+                <ArrowUpRight size={15} className="text-ink-faint" />
+              </button>
+            )}
             <button type="button" onClick={() => changeView('timeline')} className="flex w-full items-center justify-center gap-2 py-2 text-sm font-medium text-ink-faint transition hover:text-ink">
-              {Math.max(0, total - doneCount - Math.min(3, queue.length))} misi lain
-              {data.inbox.length > 0 && ` · ${data.inbox.length} di inbox`} · buka timeline
+              {Math.max(0, total - doneCount - Math.min(3, queue.length))} misi lain · buka timeline
               <ChevronDown size={15} className="-rotate-90" />
             </button>
             {data.recallDue > 0 && (
@@ -326,7 +377,13 @@ export function TodayBoard({ data }: { data: TodayData }) {
                 <h2 className="mb-1 flex items-center gap-2 text-sm font-semibold text-ink">
                   <Inbox size={15} /> Inbox pikiran <span className="rounded-full bg-surface-2 px-2 text-xs text-ink-soft">{data.inbox.length}</span>
                 </h2>
-                <p className="mb-3 text-xs text-ink-faint">Seret ke jam di atas, atau kasih hari biar kepala lega.</p>
+                <p className="mb-3 text-xs text-ink-faint">
+                  Seret ke jam di atas, atau{' '}
+                  <button type="button" onClick={() => setSweeping(true)} className="font-semibold text-brand hover:underline">
+                    proses satu-satu
+                  </button>
+                  .
+                </p>
                 <ul className="space-y-1.5">
                   {data.inbox.map((t) => (
                     <li key={t.id} draggable onDragStart={(e) => e.dataTransfer.setData('text/plain', t.id)} className="flex cursor-grab items-center gap-2 rounded-xl bg-surface-2/60 px-3 py-2 active:cursor-grabbing">
@@ -379,16 +436,29 @@ export function TodayBoard({ data }: { data: TodayData }) {
           </motion.div>
         )}
       </AnimatePresence>
+      <AnimatePresence>
+        {focusing && (
+          <FocusMode
+            key={focusing.key}
+            title={focusing.title}
+            hint={focusing.kind === 'habit' && low ? `Versi mini: ${focusing.sub}` : focusing.sub}
+            chime={sound.pop}
+            onDone={() => !focusing.done && toggle(focusing)}
+            onClose={() => setFocusing(null)}
+          />
+        )}
+      </AnimatePresence>
+      {sweeping && <InboxSweep items={data.inbox} onClose={closeSweep} />}
     </div>
   );
 }
 
 // ── HUD: progres, streak + shield, XP, bahan bakar 5 jam (satu elemen) ────
 
-function Hud({ data, doneCount, total, fuel }: { data: TodayData; doneCount: number; total: number; fuel: number }) {
+function Hud({ data, doneCount, total, fuel, capMin }: { data: TodayData; doneCount: number; total: number; fuel: number; capMin: number }) {
   const pct = total ? doneCount / total : 0;
   const lvlPct = data.levelCeil > data.levelFloor ? (data.xp - data.levelFloor) / (data.levelCeil - data.levelFloor) : 0;
-  const over = fuel > FUEL_CAP_MIN;
+  const over = fuel > capMin;
   const R = 26;
   const C = 2 * Math.PI * R;
 
@@ -432,13 +502,13 @@ function Hud({ data, doneCount, total, fuel }: { data: TodayData; doneCount: num
 
           <div>
             <div className="mb-1 flex items-center justify-between text-[11px] font-medium">
-              <span className={over ? 'text-danger' : 'text-ink-faint'}>{over ? `Over kapasitas ${Math.round((fuel - FUEL_CAP_MIN) / 6) / 10} jam: geser satu ke besok` : 'Bahan bakar fokus'}</span>
+              <span className={over ? 'text-danger' : 'text-ink-faint'}>{over ? `Over kapasitas ${Math.round((fuel - capMin) / 6) / 10} jam: geser satu ke besok` : 'Bahan bakar fokus'}</span>
               <span className={cn('tabular', over ? 'text-danger' : 'text-ink-soft')}>
-                {Math.floor(fuel / 60)}j {fuel % 60}m / 5j
+                {Math.floor(fuel / 60)}j {fuel % 60}m / {capMin / 60}j
               </span>
             </div>
             <div className="h-2 overflow-hidden rounded-full bg-surface-2">
-              <motion.div className={cn('h-full rounded-full', over ? 'bg-danger shadow-[0_0_12px_rgb(var(--danger))]' : 'bg-info')} initial={false} animate={{ width: `${Math.min(100, (fuel / FUEL_CAP_MIN) * 100)}%` }} transition={{ type: 'spring', stiffness: 140, damping: 22 }} />
+              <motion.div className={cn('h-full rounded-full', over ? 'bg-danger shadow-[0_0_12px_rgb(var(--danger))]' : 'bg-info')} initial={false} animate={{ width: `${Math.min(100, (fuel / capMin) * 100)}%` }} transition={{ type: 'spring', stiffness: 140, damping: 22 }} />
             </div>
           </div>
         </div>
@@ -497,7 +567,7 @@ function EnergyBar({ energy, low, onPick }: { energy: number; low: boolean; onPi
 
 // ── Kartu misi: satu hal, satu tombol besar ──────────────────────────────
 
-function MissionCard({ item, nowMin, low, onDone }: { item: TodayItem; nowMin: number | null; low: boolean; onDone: () => void }) {
+function MissionCard({ item, nowMin, low, onDone, onFocus, onSkip, onNotToday }: { item: TodayItem; nowMin: number | null; low: boolean; onDone: () => void; onFocus: () => void; onSkip?: () => void; onNotToday: () => void }) {
   const when = item.minute === null ? 'Kapan aja' : nowMin !== null && item.minute <= nowMin ? `Dari ${hhmm(item.minute)}` : `Jam ${hhmm(item.minute)}`;
   return (
     <motion.section layout key={item.key} initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }} className="relative overflow-hidden rounded-card bg-gradient-to-br from-brand-solid to-[#4A1460] p-6 text-white shadow-lift" aria-label="Misi sekarang">
@@ -517,6 +587,17 @@ function MissionCard({ item, nowMin, low, onDone }: { item: TodayItem; nowMin: n
       <button type="button" onClick={onDone} className={cn('relative flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-ranger text-base font-extrabold uppercase tracking-wide text-white shadow-[0_5px_0_rgb(40_110_25)] transition active:translate-y-[3px] active:shadow-[0_2px_0_rgb(40_110_25)]', item.href ? 'mt-2.5' : 'mt-5')}>
         <Check size={20} strokeWidth={3.2} /> Mission cleared
       </button>
+      <div className="relative mt-2.5 grid grid-cols-3 gap-2 text-xs font-semibold">
+        <button type="button" onClick={onFocus} className="flex h-10 items-center justify-center gap-1.5 rounded-xl bg-white/15 ring-1 ring-inset ring-white/20 transition hover:bg-white/25">
+          <Target size={15} /> Fokus
+        </button>
+        <button type="button" onClick={onSkip} disabled={!onSkip} className="flex h-10 items-center justify-center gap-1.5 rounded-xl text-white/80 transition hover:bg-white/10 hover:text-white disabled:opacity-40">
+          <SkipForward size={15} /> Skip
+        </button>
+        <button type="button" onClick={onNotToday} className="flex h-10 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl text-white/80 transition hover:bg-white/10 hover:text-white">
+          <CalendarX2 size={15} className="hidden shrink-0 min-[400px]:block" /> Bukan hari ini
+        </button>
+      </div>
     </motion.section>
   );
 }
