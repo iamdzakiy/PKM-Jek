@@ -2,7 +2,9 @@ import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/current-user';
 import { APP_LOCALE, APP_TZ, greeting } from '@/lib/utils';
 import { dayAsDate, jakartaDay } from '@/lib/adhd/progress';
-import { habitDue, heatRank, jakartaMinutes, minutesOfDay } from '@/lib/adhd/today';
+import { habitDue, heatRank, isoWeekday, jakartaMinutes, minutesOfDay } from '@/lib/adhd/today';
+import { HABIT_LINKS } from '@/lib/adhd/starter';
+import { WORKOUTS, gymWorkoutFor, type WorkoutKey } from '@/lib/training/program';
 import { levelFromXp, xpForLevel } from '@/lib/adhd/xp';
 import { TodayBoard, type TodayData, type TodayItem } from '@/components/pkm/today-board';
 
@@ -40,6 +42,7 @@ export default async function TodayPage() {
         ],
         NOT: { status: 'DONE', lastTouchedAt: { lt: start } },
       },
+      include: { project: { select: { tag: true } } },
       orderBy: [{ dueAt: 'asc' }, { createdAt: 'asc' }],
       take: 40,
     }),
@@ -63,6 +66,10 @@ export default async function TodayPage() {
     (await prisma.habitLog.findMany({ where: { date: today, completed: true, habit: { userId: user.id } }, select: { habitId: true, variantUsed: true } })).map((l) => l.habitId)
   );
 
+  // Sesi gym hari ini ikut fase terakhir yang dicatat (Full Body → PPL).
+  const lastGym = await prisma.workoutLog.findFirst({ where: { userId: user.id, workout: { in: ['A', 'B', 'PUSH', 'PULL', 'LEGS'] } }, orderBy: { date: 'desc' }, select: { workout: true } });
+  const gymKey: WorkoutKey | null = gymWorkoutFor(ymd, isoWeekday(ymd), lastGym && ['PUSH', 'PULL', 'LEGS'].includes(lastGym.workout) ? 'ppl' : 'fullbody');
+
   const items: TodayItem[] = [];
   const later: { name: string; label: string }[] = [];
 
@@ -77,7 +84,7 @@ export default async function TodayPage() {
       key: `h-${h.id}`,
       kind: 'habit',
       id: h.id,
-      title: h.name,
+      title: h.name.toLowerCase() === 'gym' && gymKey ? `Gym · ${WORKOUTS[gymKey].name}` : h.name,
       minute: minutesOfDay(h.timeOfDay),
       done: doneToday.has(h.id),
       sub: h.minimumVersion,
@@ -86,6 +93,7 @@ export default async function TodayPage() {
       overdue: false,
       sortHeat: heatRank(d.heat),
       estimate: 0,
+      href: HABIT_LINKS[h.name.toLowerCase()] ?? null,
     });
   }
 
@@ -98,7 +106,7 @@ export default async function TodayPage() {
       title: t.title,
       minute: t.dueAt && !overdue ? jakartaMinutes(t.dueAt) : null,
       done: t.status === 'DONE',
-      sub: t.location ?? (t.estimateMin ? `±${t.estimateMin} menit` : null),
+      sub: [t.project?.tag && `#${t.project.tag}`, t.location ?? (t.estimateMin ? `±${t.estimateMin} menit` : null)].filter(Boolean).join(' · ') || null,
       heat: overdue ? 'warm' : 'due',
       heatLabel: overdue ? 'Kelewat, geser ke hari ini?' : null,
       overdue,

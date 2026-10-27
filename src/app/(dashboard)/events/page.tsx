@@ -20,7 +20,7 @@ export default async function EventsPage() {
 
   return (
     <>
-      <PageHeader title="Acara" description="Acara memberi konteks waktu dan tempat bagi catatan yang terhubung." />
+      <PageHeader title="Acara" description="Jadwal dari Google Calendar dan yang kamu tambah sendiri." />
 
       <Card className="mb-6">
         <ActionForm action={createEvent} className="grid grid-cols-1 gap-4 sm:grid-cols-[1.4fr,1fr,1fr,auto] sm:items-end">

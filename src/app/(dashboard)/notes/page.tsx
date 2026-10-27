@@ -27,7 +27,7 @@ export default async function NotesPage({ searchParams }: { searchParams: { new?
     <>
       <PageHeader
         title="Catatan"
-        description="Yang aktif mengambang di atas. Yang jarang disentuh tenggelam ke Forgotten, tidak pernah dihapus."
+        description="Yang sering disentuh tetap di atas. Yang lama tenggelam, tapi nggak pernah dihapus."
       />
       <div className="mb-6">
         <NewNotePanel projects={projects} defaultOpen={searchParams.new === '1'} />

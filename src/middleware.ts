@@ -87,6 +87,6 @@ export const config = {
      * Match all paths except static files and images, so the check above
      * runs for pages and API routes but not for _next/static, favicon, etc.
      */
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 };

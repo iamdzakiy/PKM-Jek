@@ -33,12 +33,12 @@ export default async function TasksPage() {
 
   return (
     <>
-      <PageHeader title="Tugas" description="Tetapkan kapan dan di mana. Niat yang samar mengendap jadi tugas zombie." />
+      <PageHeader title="Tugas" description="Kasih jam dan tempat. Tugas tanpa waktu gampang mengendap." />
 
       <Card className="mb-6">
         <ActionForm action={createTask} className="grid grid-cols-1 gap-4 sm:grid-cols-4">
           <Field label="Tugas" htmlFor="title" className="sm:col-span-2">
-            <Input id="title" name="title" required maxLength={200} placeholder="mis. Baca artikel PIMO" />
+            <Input id="title" name="title" required maxLength={200} placeholder="mis. Kirim proposal sponsor" />
           </Field>
           <Field label="Kapan" htmlFor="dueAt">
             <Input id="dueAt" name="dueAt" type="datetime-local" />

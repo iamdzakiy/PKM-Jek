@@ -1,13 +1,13 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import type { HabitCategory } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/current-user';
 import { pushTaskToGoogle } from '@/lib/google/sync';
 import { firstThreeSteps } from '@/lib/adhd/chunker';
 import { awardWin, dayAsDate, jakartaDay } from '@/lib/adhd/progress';
 import { minutesOfDay } from '@/lib/adhd/today';
+import { STARTER_HABITS, installMorningSources, installRoles, upsertHabits } from '@/lib/adhd/starter';
 import { XP } from '@/lib/adhd/xp';
 import type { ActionResult } from '@/lib/types';
 
@@ -147,53 +147,32 @@ export async function closeDay(formData: FormData): Promise<ActionResult> {
 
 // ── Paket awal ──────────────────────────────────────────────────────────
 
-interface Starter {
-  name: string;
-  category: HabitCategory;
-  timeOfDay: string | null;
-  daysOfWeek?: number[];
-  intervalDays?: number;
-  minimumVersion: string;
-  variants?: string[];
-}
-
-/** Rutinitas dari rencana "Jek Life System v1". Bisa diubah atau diarsipkan kapan saja. */
-const STARTER: Starter[] = [
-  { name: 'Meditasi', category: 'MENTAL', timeOfDay: '07:00', minimumVersion: '2 menit tarik napas' },
-  { name: 'Gym', category: 'PHYSICAL', timeOfDay: '10:30', daysOfWeek: [1, 3, 5], minimumVersion: '20 menit, 3 gerakan utama', variants: ['Workout A', 'Workout B'] },
-  { name: 'Lari santai', category: 'PHYSICAL', timeOfDay: '07:00', daysOfWeek: [6], minimumVersion: 'Jalan kaki 15 menit' },
-  { name: 'Makan siang besar', category: 'ROUTINE', timeOfDay: '12:00', minimumVersion: 'Nasi + 1 lauk protein' },
-  { name: 'Cuci piring', category: 'ROUTINE', timeOfDay: '19:30', minimumVersion: 'Yang ada di wastafel aja' },
-  { name: 'Shake bulking', category: 'ROUTINE', timeOfDay: '21:00', minimumVersion: 'Segelas susu' },
-  { name: 'Journaling', category: 'REFLECTIVE', timeOfDay: '21:30', minimumVersion: '3 kalimat' },
-  { name: 'Cuci baju', category: 'ROUTINE', timeOfDay: null, intervalDays: 3, minimumVersion: 'Rendam / masukin mesin dulu' },
-  { name: 'Beresin kamar', category: 'ROUTINE', timeOfDay: null, intervalDays: 2, minimumVersion: '5 menit beresin meja' },
-  { name: 'Review mingguan', category: 'REFLECTIVE', timeOfDay: '20:00', daysOfWeek: [7], minimumVersion: 'Lihat jadwal minggu depan' },
-];
-
+/** Rutinitas harian, peran sebagai proyek bertag, dan sumber cek pagi. Yang sudah ada dibiarkan. */
 export async function installStarterPack(): Promise<ActionResult> {
   const user = await requireUser();
-  const existing = await prisma.habit.findMany({ where: { userId: user.id, archived: false }, select: { name: true } });
-  const have = new Set(existing.map((h) => h.name.toLowerCase()));
-  const fresh = STARTER.filter((s) => !have.has(s.name.toLowerCase()));
-
-  for (const s of fresh) {
-    await prisma.habit.create({
-      data: {
-        userId: user.id,
-        name: s.name,
-        category: s.category,
-        timeOfDay: s.timeOfDay,
-        daysOfWeek: s.daysOfWeek ?? [1, 2, 3, 4, 5, 6, 7],
-        intervalDays: s.intervalDays ?? null,
-        minimumVersion: s.minimumVersion,
-        variants: s.variants ?? [],
-        firstSteps: firstThreeSteps(s.name, s.category),
-      },
-    });
-  }
+  const { created } = await upsertHabits(user.id, STARTER_HABITS, false);
+  const roles = await installRoles(user.id);
+  const sources = await installMorningSources(user.id);
+  for (const p of ['/projects', '/admin']) revalidatePath(p);
   revalidateToday();
-  return { ok: true, message: fresh.length ? `${fresh.length} rutinitas dipasang.` : 'Semua rutinitas udah ada.' };
+  const parts = [created && `${created} rutinitas`, roles && `${roles} peran`, sources && `${sources} sumber cek pagi`].filter(Boolean);
+  return { ok: true, message: parts.length ? `${parts.join(', ')} dipasang.` : 'Semua udah terpasang.' };
+}
+
+export async function installRolePack(): Promise<ActionResult> {
+  const user = await requireUser();
+  const n = await installRoles(user.id);
+  revalidatePath('/projects');
+  return { ok: true, message: n ? `${n} peran dipasang. Pakai tagnya di tangkap cepat, mis. #imd.` : 'Semua peran udah ada.' };
+}
+
+export async function installMorningPack(): Promise<ActionResult> {
+  const user = await requireUser();
+  const n = await installMorningSources(user.id);
+  await upsertHabits(user.id, STARTER_HABITS.filter((h) => h.name === 'Cek pagi'), false);
+  revalidatePath('/admin');
+  revalidateToday();
+  return { ok: true, message: n ? `${n} sumber cek pagi dipasang.` : 'Sumber cek pagi udah lengkap.' };
 }
 
 // ── Timebox: seret tugas ke jam ─────────────────────────────────────────

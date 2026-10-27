@@ -45,6 +45,8 @@ model User {
   progress           UserProgress?
   bodyDoubleSessions BodyDoubleSession[]
   checkins           DailyCheckin[]
+  workouts           WorkoutLog[]
+  bodyLogs           BodyLog[]
 }
 
 // ── PIMO entities ──────────────────────────────────────────────────────
@@ -61,6 +63,8 @@ model Project {
   user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   name        String
   description String?
+  // hashtag pendek untuk tangkap cepat, mis. "imd" → #imd
+  tag         String?
   status      ProjectStatus @default(ACTIVE)
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
@@ -102,15 +106,15 @@ model Person {
 }
 
 model Event {
-  id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  title     String
-  startAt   DateTime
-  location  String?
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title         String
+  startAt       DateTime
+  location      String?
   // id on Google Calendar — null until the row has been pushed at least once.
-  googleEventId String? @unique
-  createdAt DateTime @default(now())
+  googleEventId String?  @unique
+  createdAt     DateTime @default(now())
 
   notes Note[]
 
@@ -124,19 +128,19 @@ enum TaskStatus {
 }
 
 model Task {
-  id        String     @id @default(cuid())
-  userId    String
-  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  projectId String?
-  project   Project?   @relation(fields: [projectId], references: [id], onDelete: SetNull)
-  title     String
-  status    TaskStatus @default(OPEN)
+  id            String     @id @default(cuid())
+  userId        String
+  user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  projectId     String?
+  project       Project?   @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  title         String
+  status        TaskStatus @default(OPEN)
   // spatiotemporal negotiation (Kairotask-style benign friction)
-  dueAt     DateTime?
-  location  String?
+  dueAt         DateTime?
+  location      String?
   // mirror of the Google event this task was pushed to (tasks only sync when
   // they have a dueAt — there's no time anchor to hang them on otherwise)
-  googleEventId String? @unique
+  googleEventId String?    @unique
 
   // ── ADHD OS: semua additive, row lama tetap valid ──
   energyType    EnergyType @default(ADMIN)
@@ -154,8 +158,8 @@ model Task {
   plannedFor    DateTime?  @db.Date
   estimateMin   Int?
 
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([userId, status])
   @@index([userId, energyType, status])
@@ -205,12 +209,12 @@ enum NoteType {
 }
 
 model Note {
-  id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  title     String
-  content   String
-  type      NoteType @default(NOTE)
+  id      String   @id @default(cuid())
+  userId  String
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title   String
+  content String
+  type    NoteType @default(NOTE)
 
   projectId String?
   project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
@@ -230,9 +234,9 @@ model Note {
   quality        Float @default(0.5) // Q: technical/content quality, 0–1
   coverage       Float @default(0.5) // C: how well it represents its topic area, 0–1
 
-  interactions    Interaction[]
-  recallSessions  ActiveRecallSession[]
-  memoryScore     MemoryScore?
+  interactions   Interaction[]
+  recallSessions ActiveRecallSession[]
+  memoryScore    MemoryScore?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -244,8 +248,8 @@ model Note {
 model NoteTopic {
   noteId  String
   topicId String
-  note    Note  @relation(fields: [noteId], references: [id], onDelete: Cascade)
-  topic   Topic @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  note    Note   @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  topic   Topic  @relation(fields: [topicId], references: [id], onDelete: Cascade)
 
   @@id([noteId, topicId])
 }
@@ -269,12 +273,12 @@ enum InteractionType {
 }
 
 model Interaction {
-  id        String           @id @default(cuid())
+  id        String          @id @default(cuid())
   noteId    String
-  note      Note             @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  note      Note            @relation(fields: [noteId], references: [id], onDelete: Cascade)
   type      InteractionType
   weight    Float // w_i: CREATE=1.0 EDIT=0.8 COMMENT=0.9 VIEW=0.2
-  createdAt DateTime         @default(now())
+  createdAt DateTime        @default(now())
 
   @@index([noteId, createdAt])
 }
@@ -361,23 +365,23 @@ enum OpportunityStatus {
 }
 
 model Habit {
-  id            String        @id @default(cuid())
-  userId        String
-  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  name          String
-  category      HabitCategory @default(ROUTINE)
-  variants      String[] // rotasi format (Novelty)
-  anchorTrigger String? // habit stacking: "setelah minum kopi pagi"
-  firstSteps    String[] // First 3 Steps
-  daysOfWeek    Int[]         @default([1, 2, 3, 4, 5, 6, 7]) // 1=Senin ... 7=Minggu
-  targetMinutes Int           @default(15)
+  id             String        @id @default(cuid())
+  userId         String
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name           String
+  category       HabitCategory @default(ROUTINE)
+  variants       String[] // rotasi format (Novelty)
+  anchorTrigger  String? // habit stacking: "setelah minum kopi pagi"
+  firstSteps     String[] // First 3 Steps
+  daysOfWeek     Int[]         @default([1, 2, 3, 4, 5, 6, 7]) // 1=Senin ... 7=Minggu
+  targetMinutes  Int           @default(15)
   // ── Hari Ini: jam tampil di timeline, chores berbasis interval, versi mini ──
   timeOfDay      String? // "HH:MM" WIB; null = kapan saja hari itu
   intervalDays   Int? // isi = "setiap N hari" (chores), daysOfWeek diabaikan
   minimumVersion String? // versi paling kecil yang tetap dihitung selesai
-  archived      Boolean       @default(false)
-  createdAt     DateTime      @default(now())
-  logs          HabitLog[]
+  archived       Boolean       @default(false)
+  createdAt      DateTime      @default(now())
+  logs           HabitLog[]
 
   @@index([userId, archived])
 }
@@ -399,15 +403,15 @@ model HabitLog {
 }
 
 model AdminSource {
-  id        String              @id @default(cuid())
+  id        String          @id @default(cuid())
   userId    String
-  user      User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   name      String
   kind      AdminSourceKind
   url       String?
   note      String?
-  active    Boolean             @default(true)
-  createdAt DateTime            @default(now())
+  active    Boolean         @default(true)
+  createdAt DateTime        @default(now())
   items     AdminItem[]
 
   @@index([userId, active])
@@ -527,4 +531,37 @@ model BodyDoubleSession {
   endedAt    DateTime?
 
   @@index([roomId, lastPingAt])
+}
+
+// ── Latihan: catatan sesi gym/lari/yoga dan timbang mingguan ──────────────
+
+model WorkoutLog {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date       DateTime @db.Date
+  // "A" | "B" | "PUSH" | "PULL" | "LEGS" | "HOME" | "RUN" | "YOGA"
+  workout    String
+  // [{ "exercise": "goblet-squat", "weight": 12, "reps": [10, 10, 9] }]
+  sets       Json     @default("[]")
+  minutes    Int?
+  distanceKm Float?
+  notes      String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([userId, date, workout])
+  @@index([userId, workout, date])
+}
+
+model BodyLog {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date      DateTime @db.Date
+  weightKg  Float
+  waistCm   Float?
+  createdAt DateTime @default(now())
+
+  @@unique([userId, date])
 }

@@ -3,19 +3,25 @@ import './globals.css';
 import { Providers } from '@/components/providers';
 
 export const metadata: Metadata = {
-  title: { default: 'Second Brain', template: '%s · Second Brain' },
-  description: 'Ruang kerja pribadi dengan memori yang dikelola: tangkap semuanya, lihat hanya yang penting.',
+  title: { default: 'Star Command', template: '%s · Star Command' },
+  description: 'Mission control pribadi: misi hari ini, habit, catatan, dan kalender dalam satu layar.',
+  applicationName: 'Star Command',
+  appleWebApp: { capable: true, title: 'Star Command', statusBarStyle: 'black-translucent' },
+  formatDetection: { telephone: false },
   robots: { index: false, follow: false },
 };
 
 export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover',
   themeColor: [
-    { media: '(prefers-color-scheme: dark)', color: '#0B1120' },
-    { media: '(prefers-color-scheme: light)', color: '#F8FAFC' },
+    { media: '(prefers-color-scheme: dark)', color: '#0B0E14' },
+    { media: '(prefers-color-scheme: light)', color: '#F8F9FA' },
   ],
 };
 
-// Runs before first paint so the saved theme never flashes. GSIC navy is the default.
+// Jalan sebelum paint pertama supaya tema tersimpan tidak berkedip. Default: Deep Void (gelap).
 const themeScript = `try{var t=localStorage.getItem('sb-theme');document.documentElement.classList.toggle('dark',t!=='light')}catch(e){document.documentElement.classList.add('dark')}`;
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

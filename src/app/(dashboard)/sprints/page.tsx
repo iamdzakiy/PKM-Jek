@@ -23,7 +23,7 @@ export default async function SprintsPage() {
 
   return (
     <>
-      <PageHeader title="Sprint" description="Pilih energimu, lalu satu blok fokus. Maksimal 120 menit, diikuti jeda 15 menit." />
+      <PageHeader title="Sprint" description="Satu blok fokus sesuai energi. Maks 120 menit, lalu jeda 15 menit." />
       <SprintBoard tasks={dto} active={active} />
     </>
   );

@@ -19,7 +19,7 @@ export default async function OpportunitiesPage() {
 
   return (
     <>
-      <PageHeader title="Radar Peluang" description="Beasiswa, hibah, lomba. Catat tenggatnya, nanti dipecah jadi langkah kecil mundur dari tanggal itu." />
+      <PageHeader title="Peluang" description="Beasiswa, hibah, lomba. Tenggatnya dipecah jadi langkah kecil." />
       <Card className="mb-6">
         <ActionForm action={createOpportunity} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field label="Nama peluang" htmlFor="o-title"><Input id="o-title" name="title" required maxLength={160} /></Field>

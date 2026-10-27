@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/current-user';
-import { asNoteType, createNoteRecord, parseTopicNames } from '@/lib/notes-service';
+import { asNoteType, createNoteRecord, parseTopicNames, resolveTopic } from '@/lib/notes-service';
 import { refreshNoteScore } from '@/lib/memory/refresh';
 import { clamp01 } from '@/lib/utils';
 import type { ActionResult } from '@/lib/types';
@@ -97,11 +97,7 @@ export async function addNoteTopic(noteId: string, name: string): Promise<Action
   if (!clean) return { ok: false, message: 'Tulis nama topik.' };
   if (!(await ownedNote(noteId, user.id))) return { ok: false, message: 'Catatan tidak ditemukan.' };
 
-  const topic = await prisma.topic.upsert({
-    where: { userId_name: { userId: user.id, name: clean } },
-    update: {},
-    create: { userId: user.id, name: clean },
-  });
+  const topic = await resolveTopic(user.id, clean);
   await prisma.noteTopic.upsert({
     where: { noteId_topicId: { noteId, topicId: topic.id } },
     update: {},

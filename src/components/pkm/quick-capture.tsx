@@ -11,7 +11,7 @@ import { EnergyChips } from './energy-picker';
 import type { Energy } from '@/lib/adhd/energy';
 import { EASE } from '@/components/motion/primitives';
 
-const TAGS = ['#hariini', '#task', '#idea', '#insight'];
+const TAGS = ['#hariini', '#besok', '#tugas', '#ide', '#insight'];
 
 export function QuickCapture({ open, onClose }: { open: boolean; onClose: () => void }) {
   const textRef = useRef<HTMLTextAreaElement>(null);
@@ -103,7 +103,7 @@ export function QuickCapture({ open, onClose }: { open: boolean; onClose: () => 
                 <h2 id="qc-title" className="font-heading text-base font-semibold text-ink">
                   Tangkap cepat
                 </h2>
-                <p className="mt-0.5 text-sm text-ink-soft">Tulis apa saja. Kosongkan kepala, sisanya diurus sistem.</p>
+                <p className="mt-0.5 text-sm text-ink-soft">Tulis dulu, pilah nanti.</p>
               </div>
               <Button variant="ghost" size="icon" onClick={onClose} aria-label="Tutup">
                 <X size={17} />
@@ -119,7 +119,7 @@ export function QuickCapture({ open, onClose }: { open: boolean; onClose: () => 
                 autoFocus
                 required
                 onKeyDown={submitOnShortcut}
-                placeholder={'Baris pertama jadi judul.\n#hariini = harus beres hari ini. #idea, #task, #nama-topik juga bisa.'}
+                placeholder={'Baris pertama jadi judul.\n#hariini, #besok, #imd (tag peran), #ide, atau #topik apa aja.'}
                 aria-label="Isi catatan"
               />
               <EnergyChips name="energy" value={energy} onChange={setEnergy} />

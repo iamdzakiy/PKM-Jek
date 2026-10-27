@@ -8,7 +8,7 @@ export default function EnginePage() {
     <>
       <PageHeader
         title="Pembobotan"
-        description="Dua skor menentukan apa yang tetap terlihat dan apa yang tenggelam. Mainkan parameternya dan lihat catatan contoh berpindah folder."
+        description="Dua skor yang menentukan catatan mana tetap terlihat. Coba ubah parameternya."
       />
       <EngineLab />
     </>

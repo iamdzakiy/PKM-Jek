@@ -50,7 +50,7 @@ export default async function HabitsPage() {
 
   return (
     <>
-      <PageHeader title="Habit" description="Mulai dari langkah pertama saja. Satu langkah sudah dihitung." />
+      <PageHeader title="Habit" description="Versi mini tetap dihitung selesai." />
       <Card className="mb-6">
         <ActionForm action={createHabit} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field label="Kebiasaan" htmlFor="h-name">

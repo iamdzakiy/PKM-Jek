@@ -23,7 +23,7 @@ export default async function TopicsPage() {
 
   return (
     <>
-      <PageHeader title="Topik" description="Topik menghubungkan catatan lintas proyek dan waktu. Topik hot menahan catatannya tetap terlihat." />
+      <PageHeader title="Topik" description="Tag yang menghubungkan catatan. Topik hot tetap di atas." />
 
       <Card className="mb-6">
         <ActionForm action={createTopic} className="flex flex-wrap items-end gap-4">

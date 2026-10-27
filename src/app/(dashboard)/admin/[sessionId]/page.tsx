@@ -6,7 +6,7 @@ import { AdminSweepTimer } from '@/components/pkm/admin-sweep-timer';
 import { Card, CardTitle } from '@/components/ui/card';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: 'Sweep Admin' };
+export const metadata = { title: 'Admin berjalan' };
 
 export default async function SweepPage({ params }: { params: { sessionId: string } }) {
   const user = await requireUser();
@@ -19,7 +19,7 @@ export default async function SweepPage({ params }: { params: { sessionId: strin
 
   return (
     <>
-      <PageHeader title="Sweep berjalan" description="Buka tiap sumber, catat satu baris untuk setiap hal yang butuh tindakan. Jangan dibalas dulu." />
+      <PageHeader title="Admin berjalan" description="Buka tiap sumber, catat satu baris per hal. Jangan dibalas dulu." />
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <Card>
           <AdminSweepTimer

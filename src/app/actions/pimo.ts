@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/current-user';
 import { refreshAllScores } from '@/lib/memory/refresh';
 import { parseLocalDateTime } from '@/lib/utils';
+import { normalizeTag, resolveTopic } from '@/lib/notes-service';
 import type { ActionResult } from '@/lib/types';
 import type { ProjectStatus } from '@prisma/client';
 import { pushEventToGoogle, removeRowFromGoogle } from '@/lib/google/sync';
@@ -18,8 +19,10 @@ export async function createProject(formData: FormData): Promise<ActionResult> {
   const name = String(formData.get('name') ?? '').trim().slice(0, 120);
   const description = String(formData.get('description') ?? '').trim().slice(0, 500) || null;
   if (!name) return { ok: false, message: 'Nama proyek wajib diisi.' };
+  // Tag pendek untuk tangkap cepat; default dari kata pertama nama proyek.
+  const tag = normalizeTag(String(formData.get('tag') ?? '') || name.split(/\s+/)[0]).slice(0, 20) || null;
 
-  await prisma.project.create({ data: { userId: user.id, name, description } });
+  await prisma.project.create({ data: { userId: user.id, name, description, tag } });
   revalidatePath('/projects');
   return { ok: true, message: 'Proyek ditambahkan.' };
 }
@@ -36,15 +39,11 @@ export async function setProjectStatus(projectId: string, status: ProjectStatus)
 
 export async function createTopic(formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
-  const name = String(formData.get('name') ?? '').trim().replace(/^#+/, '').slice(0, 40);
+  const name = normalizeTag(String(formData.get('name') ?? ''));
   const isHot = formData.get('isHot') === 'on';
   if (!name) return { ok: false, message: 'Nama topik wajib diisi.' };
 
-  await prisma.topic.upsert({
-    where: { userId_name: { userId: user.id, name } },
-    update: { isHot },
-    create: { userId: user.id, name, isHot },
-  });
+  await resolveTopic(user.id, name, isHot);
   if (isHot) await refreshAllScores(user.id);
   revalidatePath('/topics');
   revalidatePath('/');

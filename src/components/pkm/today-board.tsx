@@ -1,9 +1,10 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
-import { CalendarDays, Check, ChevronDown, Clock, Flame, GripVertical, Inbox, LayoutGrid, ListTree, Moon, Plus, Rocket, Shield, Sparkles, Volume2, VolumeX, Zap } from 'lucide-react';
+import { ArrowUpRight, CalendarDays, Check, ChevronDown, Clock, Flame, GripVertical, Inbox, LayoutGrid, ListTree, Moon, Plus, Rocket, Shield, Sparkles, Volume2, VolumeX, Zap } from 'lucide-react';
 import { addTodayTask, closeDay, installStarterPack, planTask, scheduleTaskAt, setTodayEnergy, toggleHabitToday, toggleTaskDone } from '@/app/actions/today';
 import { ActionForm, SubmitButton } from '@/components/ui/form';
 import { Input, Select, Textarea } from '@/components/ui/input';
@@ -27,6 +28,8 @@ export interface TodayItem {
   sortHeat: number;
   /** estimasi menit fokus (tugas saja), dipakai bar bahan bakar 5 jam */
   estimate: number;
+  /** halaman pendukung, mis. Gym → /training, Cek pagi → /admin */
+  href?: string | null;
 }
 
 export interface TodayData {
@@ -495,7 +498,12 @@ function MissionCard({ item, nowMin, low, onDone }: { item: TodayItem; nowMin: n
       <p className="relative mt-2 font-heading text-[26px] font-bold leading-tight">{item.title}</p>
       {item.sub && <p className="relative mt-1 text-sm text-white/80">{low && item.kind === 'habit' ? `Versi mini: ${item.sub}` : item.sub}</p>}
       {item.heatLabel && <p className="relative mt-2 inline-block rounded-lg bg-white/15 px-2 py-0.5 text-xs font-semibold">{item.heatLabel}</p>}
-      <button type="button" onClick={onDone} className="relative mt-5 flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-ranger text-base font-extrabold uppercase tracking-wide text-white shadow-[0_5px_0_rgb(40_110_25)] transition active:translate-y-[3px] active:shadow-[0_2px_0_rgb(40_110_25)]">
+      {item.href && (
+        <Link href={item.href} className="relative mt-4 flex h-11 w-full items-center justify-center gap-1.5 rounded-2xl bg-white/15 text-sm font-semibold text-white ring-1 ring-inset ring-white/20 transition hover:bg-white/25">
+          Buka panduan <ArrowUpRight size={15} />
+        </Link>
+      )}
+      <button type="button" onClick={onDone} className={cn('relative flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-ranger text-base font-extrabold uppercase tracking-wide text-white shadow-[0_5px_0_rgb(40_110_25)] transition active:translate-y-[3px] active:shadow-[0_2px_0_rgb(40_110_25)]', item.href ? 'mt-2.5' : 'mt-5')}>
         <Check size={20} strokeWidth={3.2} /> Mission cleared
       </button>
     </motion.section>
@@ -690,6 +698,11 @@ function Row({ item, nowMin, low, burst, onToggle, onSchedule, onShift }: { item
         <button type="button" onClick={onShift} className="shrink-0 rounded-lg bg-surface-2 px-2.5 py-1.5 text-xs font-semibold text-ink-soft hover:text-ink">
           Geser
         </button>
+      )}
+      {item.href && !item.done && (
+        <Link href={item.href} aria-label={`Buka ${item.title}`} title="Buka panduan" className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-ink-faint hover:bg-surface-2 hover:text-ink">
+          <ArrowUpRight size={15} />
+        </Link>
       )}
       {showMini && (
         <button type="button" onClick={() => onToggle(item, true)} title={`Versi mini: ${item.sub}`} className="shrink-0 rounded-lg px-2 py-1.5 text-xs font-medium text-ink-faint hover:bg-surface-2 hover:text-ink">

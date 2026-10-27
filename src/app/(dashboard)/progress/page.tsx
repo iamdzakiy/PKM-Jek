@@ -33,7 +33,7 @@ export default async function ProgressPage() {
 
   return (
     <>
-      <PageHeader title="Progres" description="Yang kamu lakukan tetap tercatat. Angka di sini hanya naik, tidak pernah turun." />
+      <PageHeader title="Progres" description="Semua yang udah kamu lakukan. Angkanya cuma bisa naik." />
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <Card className="lg:col-span-1">
           <CardTitle className="mb-3">Level {level}</CardTitle>

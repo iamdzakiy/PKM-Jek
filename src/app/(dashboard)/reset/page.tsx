@@ -6,7 +6,7 @@ export const metadata = { title: 'Reset' };
 export default function ResetPage() {
   return (
     <>
-      <PageHeader title="Reset" description="Kalau kepala terasa ramai. Ikuti lingkaran, tidak perlu melakukan hal lain." />
+      <PageHeader title="Reset" description="Kalau kepala lagi ramai. Ikuti lingkarannya aja." />
       <InteroceptiveReset />
     </>
   );
