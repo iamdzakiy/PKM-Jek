@@ -132,3 +132,30 @@ export async function toggleNotePerson(noteId: string, personId: string): Promis
   revalidateVault(noteId);
   return { ok: true };
 }
+
+// ── Tautan [[judul]] ────────────────────────────────────────────────────
+
+/** Buka catatan berjudul `title`, atau buat kosong kalau belum ada (klik tautan [[...]] yang belum ada). */
+export async function openNoteByTitle(title: string): Promise<void> {
+  const user = await requireUser();
+  const clean = title.trim().slice(0, 200);
+  if (!clean) redirect('/notes');
+  const found = await prisma.note.findFirst({ where: { userId: user.id, title: { equals: clean, mode: 'insensitive' } }, select: { id: true } });
+  if (found) redirect(`/notes/${found.id}`);
+  const note = await createNoteRecord({ userId: user.id, title: clean, content: '', type: 'NOTE' });
+  revalidateVault();
+  redirect(`/notes/${note.id}`);
+}
+
+/** Saran judul untuk mengetik [[ di editor. */
+export async function suggestNoteTitles(q: string): Promise<string[]> {
+  const user = await requireUser();
+  const text = q.trim().slice(0, 80);
+  const notes = await prisma.note.findMany({
+    where: { userId: user.id, ...(text ? { title: { contains: text, mode: 'insensitive' as const } } : {}) },
+    select: { title: true },
+    orderBy: { updatedAt: 'desc' },
+    take: 8,
+  });
+  return Array.from(new Set(notes.map((n) => n.title)));
+}

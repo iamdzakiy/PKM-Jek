@@ -1,3 +1,5 @@
+import Link from 'next/link';
+import { CalendarDays, Download } from 'lucide-react';
 import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/current-user';
 import { toNoteDTO } from '@/lib/dto';
@@ -28,6 +30,16 @@ export default async function NotesPage({ searchParams }: { searchParams: { new?
       <PageHeader
         title="Catatan"
         description="Yang sering disentuh tetap di atas. Yang lama tenggelam, tapi nggak pernah dihapus."
+        actions={
+          <>
+            <Link href="/notes/harian" className="inline-flex h-10 items-center gap-1.5 rounded-xl bg-brand-solid px-3.5 text-sm font-semibold text-white transition hover:brightness-110">
+              <CalendarDays size={16} /> Catatan hari ini
+            </Link>
+            <a href="/export" download className="inline-flex h-10 items-center gap-1.5 rounded-xl px-3 text-sm font-medium text-ink-soft transition hover:bg-surface-2 hover:text-ink" title="Semua catatan sebagai Markdown (.zip)">
+              <Download size={16} /> Export
+            </a>
+          </>
+        }
       />
       <div className="mb-6">
         <NewNotePanel projects={projects} defaultOpen={searchParams.new === '1'} />

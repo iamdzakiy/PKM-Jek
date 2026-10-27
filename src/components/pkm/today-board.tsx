@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ArrowUpRight, BrainCircuit, CalendarDays, CalendarX2, Check, ChevronDown, Clock, Flame, GripVertical, Inbox, LayoutGrid, ListTree, Moon, Plus, Rocket, Shield, SkipForward, Sparkles, Target, Volume2, VolumeX, Zap } from 'lucide-react';
+import { ArrowUpRight, BrainCircuit, CalendarDays, CalendarX2, Check, ChevronDown, Clock, Flame, GripVertical, Inbox, LayoutGrid, ListTree, Moon, NotebookPen, Plus, Rocket, Shield, SkipForward, Sparkles, Target, Volume2, VolumeX, Zap } from 'lucide-react';
 import { addTodayTask, closeDay, deferTask, installStarterPack, planTask, scheduleTaskAt, setTodayEnergy, toggleHabitToday, toggleTaskDone } from '@/app/actions/today';
 import { ActionForm, SubmitButton } from '@/components/ui/form';
 import { Input, Select, Textarea } from '@/components/ui/input';
@@ -288,6 +288,9 @@ export function TodayBoard({ data }: { data: TodayData }) {
             {data.dateLabel}
           </p>
         <div className="flex items-center gap-1">
+          <Link href="/notes/harian" aria-label="Catatan harian" title="Catatan harian" className="grid h-9 w-9 place-items-center rounded-xl text-ink-faint transition hover:bg-surface-2 hover:text-ink">
+            <NotebookPen size={17} />
+          </Link>
           <button type="button" onClick={sound.toggle} aria-label={sound.on ? 'Matikan suara' : 'Nyalakan suara'} className="grid h-9 w-9 place-items-center rounded-xl text-ink-faint transition hover:bg-surface-2 hover:text-ink">
             {sound.on ? <Volume2 size={17} /> : <VolumeX size={17} />}
           </button>

@@ -216,6 +216,8 @@ model Note {
   title   String
   content String
   type    NoteType @default(NOTE)
+  /// diisi untuk catatan harian (satu per hari WIB)
+  dailyFor DateTime? @db.Date
 
   projectId String?
   project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
@@ -242,6 +244,7 @@ model Note {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@unique([userId, dailyFor])
   @@index([userId])
   @@index([userId, projectId])
 }
