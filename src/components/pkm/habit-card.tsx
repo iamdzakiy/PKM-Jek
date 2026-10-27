@@ -11,6 +11,8 @@ export interface HabitDTO {
   id: string;
   name: string;
   anchorTrigger: string | null;
+  schedule: string;
+  minimumVersion: string | null;
   firstSteps: string[];
   variants: string[];
   stepsDone: number;
@@ -70,7 +72,9 @@ export function HabitCard({ habit }: { habit: HabitDTO }) {
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="font-medium text-ink">{habit.name}</p>
+          <p className="mt-0.5 text-xs font-medium text-brand">{habit.schedule}</p>
           {habit.anchorTrigger && <p className="mt-0.5 text-xs text-ink-faint">Setelah {habit.anchorTrigger.replace(/^setelah\s+/i, '')}</p>}
+          {habit.minimumVersion && <p className="mt-0.5 text-xs text-ink-faint">Versi mini: {habit.minimumVersion}</p>}
         </div>
         <div className="flex gap-1" aria-label="7 hari terakhir">
           {habit.weekDots.map((d, i) => (

@@ -7,6 +7,7 @@ import { prisma } from '@/lib/prisma';
 import { asEnergy, isEnergy } from '@/lib/adhd/energy';
 import { categorizeCapture } from '@/lib/adhd/categorize';
 import { firstThreeSteps } from '@/lib/adhd/chunker';
+import { dayAsDate, jakartaDay } from '@/lib/adhd/progress';
 import type { ActionResult } from '@/lib/types';
 import type { NoteType } from '@prisma/client';
 
@@ -17,6 +18,8 @@ const TYPE_TAGS: Record<string, NoteType> = {
   ide: 'IDEA',
   insight: 'INSIGHT',
 };
+
+const TODAY_TAGS = ['hariini', 'today'];
 
 const HASHTAG = /(^|\s)#([\p{L}\p{N}_-]+)/gu;
 
@@ -31,10 +34,15 @@ export async function quickCapture(formData: FormData): Promise<ActionResult> {
   if (!raw) return { ok: false, message: 'Tulis sesuatu dulu.' };
 
   let type: NoteType = 'NOTE';
+  let forToday = false;
   const topics: string[] = [];
   for (const m of raw.matchAll(HASHTAG)) {
     const tag = m[2].toLowerCase();
-    if (TYPE_TAGS[tag]) {
+    if (TODAY_TAGS.includes(tag)) {
+      // "#hariini" = harus beres hari ini: jadikan tugas dan pasang di Hari Ini.
+      forToday = true;
+      type = 'TASK';
+    } else if (TYPE_TAGS[tag]) {
       if (type === 'NOTE') type = TYPE_TAGS[tag];
     } else {
       topics.push(m[2]);
@@ -57,12 +65,12 @@ export async function quickCapture(formData: FormData): Promise<ActionResult> {
   // Tugas ikut dibuat sebagai baris Task supaya langsung muncul di daftar dan sprint.
   if (type === 'TASK') {
     await prisma.task.create({
-      data: { userId: user.id, title, energyType: asEnergy(energy), firstSteps: firstThreeSteps(title) },
+      data: { userId: user.id, title, energyType: asEnergy(energy), firstSteps: firstThreeSteps(title), plannedFor: forToday ? dayAsDate(jakartaDay()) : null },
     });
     revalidatePath('/tasks');
   }
 
   revalidatePath('/');
   revalidatePath('/notes');
-  return { ok: true, message: type === 'TASK' ? 'Tertangkap. Tugas baru sudah masuk daftar.' : 'Tertangkap, aman di Last Focus.', href: `/notes/${note.id}` };
+  return { ok: true, message: forToday ? 'Tertangkap, masuk Hari Ini.' : type === 'TASK' ? 'Tertangkap. Tugas baru masuk inbox Hari Ini.' : 'Tertangkap, aman di Last Focus.', href: `/notes/${note.id}` };
 }

@@ -44,6 +44,7 @@ model User {
   microWins          MicroWin[]
   progress           UserProgress?
   bodyDoubleSessions BodyDoubleSession[]
+  checkins           DailyCheckin[]
 }
 
 // ── PIMO entities ──────────────────────────────────────────────────────
@@ -149,12 +150,16 @@ model Task {
   sprintId      String?
   lastTouchedAt DateTime   @default(now())
   archived      Boolean    @default(false)
+  // Hari Ini: dipilih jadi fokus untuk tanggal (WIB) ini, plus estimasi durasi
+  plannedFor    DateTime?  @db.Date
+  estimateMin   Int?
 
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
 
   @@index([userId, status])
   @@index([userId, energyType, status])
+  @@index([userId, plannedFor])
 }
 
 // ── Google Calendar link (optional, real-time two-way sync) ───────────────
@@ -366,6 +371,10 @@ model Habit {
   firstSteps    String[] // First 3 Steps
   daysOfWeek    Int[]         @default([1, 2, 3, 4, 5, 6, 7]) // 1=Senin ... 7=Minggu
   targetMinutes Int           @default(15)
+  // ── Hari Ini: jam tampil di timeline, chores berbasis interval, versi mini ──
+  timeOfDay      String? // "HH:MM" WIB; null = kapan saja hari itu
+  intervalDays   Int? // isi = "setiap N hari" (chores), daysOfWeek diabaikan
+  minimumVersion String? // versi paling kecil yang tetap dihitung selesai
   archived      Boolean       @default(false)
   createdAt     DateTime      @default(now())
   logs          HabitLog[]
@@ -478,6 +487,22 @@ model MicroWin {
   createdAt DateTime @default(now())
 
   @@index([userId, createdAt])
+}
+
+// Satu baris per hari WIB: check-in energi pagi + Tutup Hari malam.
+model DailyCheckin {
+  id            String    @id @default(cuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date          DateTime  @db.Date
+  energy        Int? // 1 = habis, 2 = biasa, 3 = penuh
+  journal       String?
+  meditationMin Int?
+  closedAt      DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@unique([userId, date])
 }
 
 model UserProgress {

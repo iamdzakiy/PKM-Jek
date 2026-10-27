@@ -1,4 +1,4 @@
-import { BrainCircuit, Flower2, Inbox, Radar, Repeat, Timer, TrendingUp, CalendarClock, CalendarDays, FolderKanban, Hash, LayoutDashboard, ListChecks, NotebookText, SlidersHorizontal, Users, type LucideIcon } from 'lucide-react';
+import { BrainCircuit, CalendarCheck, Flower2, Inbox, Radar, Repeat, Timer, TrendingUp, CalendarClock, CalendarDays, FolderKanban, Hash, LayoutDashboard, ListChecks, NotebookText, SlidersHorizontal, Users, type LucideIcon } from 'lucide-react';
 
 export interface NavItem {
   href: string;
@@ -8,41 +8,45 @@ export interface NavItem {
 
 export const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
   {
-    title: 'Ruang kerja',
+    title: 'Utama',
     items: [
-      { href: '/', label: 'Dashboard', icon: LayoutDashboard },
-      { href: '/notes', label: 'Catatan', icon: NotebookText },
+      { href: '/', label: 'Hari Ini', icon: CalendarCheck },
+      { href: '/habits', label: 'Habit', icon: Repeat },
       { href: '/tasks', label: 'Tugas', icon: ListChecks },
-      { href: '/recall', label: 'Active Recall', icon: BrainCircuit },
+      { href: '/notes', label: 'Catatan', icon: NotebookText },
     ],
   },
   {
     title: 'Ritme',
     items: [
-      { href: '/habits', label: 'Habit', icon: Repeat },
+      { href: '/progress', label: 'Progres', icon: TrendingUp },
       { href: '/sprints', label: 'Sprint', icon: Timer },
+      { href: '/reset', label: 'Reset', icon: Flower2 },
       { href: '/admin', label: 'Admin', icon: Inbox },
       { href: '/opportunities', label: 'Peluang', icon: Radar },
-      { href: '/progress', label: 'Progres', icon: TrendingUp },
-      { href: '/reset', label: 'Reset', icon: Flower2 },
     ],
   },
   {
-    title: 'Konteks',
+    title: 'Lainnya',
     items: [
+      { href: '/recall', label: 'Active Recall', icon: BrainCircuit },
       { href: '/projects', label: 'Proyek', icon: FolderKanban },
       { href: '/topics', label: 'Topik', icon: Hash },
       { href: '/people', label: 'Orang', icon: Users },
       { href: '/events', label: 'Acara', icon: CalendarDays },
-    ],
-  },
-  {
-    title: 'Mesin',
-    items: [
+      { href: '/memory', label: 'Memori', icon: LayoutDashboard },
       { href: '/engine', label: 'Pembobotan', icon: SlidersHorizontal },
       { href: '/settings/google', label: 'Google Calendar', icon: CalendarClock },
     ],
   },
+];
+
+/** Tab bawah di HP: empat tujuan harian, tombol tangkap cepat di tengah. */
+export const MOBILE_TABS: NavItem[] = [
+  { href: '/', label: 'Hari Ini', icon: CalendarCheck },
+  { href: '/habits', label: 'Habit', icon: Repeat },
+  { href: '/tasks', label: 'Tugas', icon: ListChecks },
+  { href: '/progress', label: 'Progres', icon: TrendingUp },
 ];
 
 export const ALL_NAV: NavItem[] = NAV_GROUPS.flatMap((g) => g.items);

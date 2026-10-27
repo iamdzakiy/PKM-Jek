@@ -11,6 +11,7 @@ import { firstThreeSteps } from '@/lib/adhd/chunker';
 import { at1700Jakarta, planDeadline } from '@/lib/adhd/lead-days';
 import { awardWin, dayAsDate, jakartaDay } from '@/lib/adhd/progress';
 import { XP } from '@/lib/adhd/xp';
+import { minutesOfDay } from '@/lib/adhd/today';
 import type { ActionResult } from '@/lib/types';
 
 const OK_STEP = 'Sudah. Satu langkah.';
@@ -185,8 +186,27 @@ export async function createHabit(formData: FormData): Promise<ActionResult> {
   const variants = splitList(String(formData.get('variants') ?? ''));
   const typed = splitList(String(formData.get('firstSteps') ?? ''), 3);
 
+  const rawTime = String(formData.get('timeOfDay') ?? '').trim();
+  const timeOfDay = minutesOfDay(rawTime) === null ? null : rawTime.padStart(5, '0');
+  const every = Number(formData.get('intervalDays') ?? 0);
+  const intervalDays = String(formData.get('mode') ?? '') === 'interval' && Number.isFinite(every) && every >= 1 ? Math.min(60, Math.round(every)) : null;
+  const picked = formData.getAll('daysOfWeek').map(Number).filter((d) => Number.isInteger(d) && d >= 1 && d <= 7);
+  const daysOfWeek = picked.length ? Array.from(new Set(picked)).sort() : [1, 2, 3, 4, 5, 6, 7];
+  const minimumVersion = String(formData.get('minimumVersion') ?? '').trim().slice(0, 80) || null;
+
   await prisma.habit.create({
-    data: { userId: user.id, name, category, anchorTrigger, variants, firstSteps: typed.length === 3 ? typed : firstThreeSteps(name, category) },
+    data: {
+      userId: user.id,
+      name,
+      category,
+      anchorTrigger,
+      variants,
+      firstSteps: typed.length === 3 ? typed : firstThreeSteps(name, category),
+      timeOfDay,
+      intervalDays,
+      daysOfWeek,
+      minimumVersion,
+    },
   });
   revalidatePath('/habits');
   revalidatePath('/');

@@ -11,7 +11,7 @@ import { EnergyChips } from './energy-picker';
 import type { Energy } from '@/lib/adhd/energy';
 import { EASE } from '@/components/motion/primitives';
 
-const TAGS = ['#task', '#idea', '#insight'];
+const TAGS = ['#hariini', '#task', '#idea', '#insight'];
 
 export function QuickCapture({ open, onClose }: { open: boolean; onClose: () => void }) {
   const textRef = useRef<HTMLTextAreaElement>(null);
@@ -119,7 +119,7 @@ export function QuickCapture({ open, onClose }: { open: boolean; onClose: () => 
                 autoFocus
                 required
                 onKeyDown={submitOnShortcut}
-                placeholder={'Baris pertama jadi judul.\nTambah #idea, #task, atau #nama-topik di mana saja.'}
+                placeholder={'Baris pertama jadi judul.\n#hariini = harus beres hari ini. #idea, #task, #nama-topik juga bisa.'}
                 aria-label="Isi catatan"
               />
               <EnergyChips name="energy" value={energy} onChange={setEnergy} />

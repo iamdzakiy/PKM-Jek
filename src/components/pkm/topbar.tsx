@@ -3,13 +3,15 @@
 import { useCallback, useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Menu, Plus, X } from 'lucide-react';
+import { Menu, Plus, X, type LucideIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { BrandMark } from './brand-mark';
 import { QuickCapture } from './quick-capture';
 import { ThemeToggle } from './theme-toggle';
 import { AccountBlock, SidebarNav } from './sidebar';
-import { ALL_NAV, isActive } from './nav';
+import Link from 'next/link';
+import { cn } from '@/lib/utils';
+import { ALL_NAV, MOBILE_TABS, isActive } from './nav';
 
 export function TopBar({ email }: { email: string }) {
   const pathname = usePathname();
@@ -60,6 +62,23 @@ export function TopBar({ email }: { email: string }) {
 
       <QuickCapture open={captureOpen} onClose={closeCapture} />
 
+      {/* Tab bawah ala aplikasi HP: jempol cukup, tanpa buka menu. */}
+      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-md md:hidden" aria-label="Navigasi bawah">
+        <ul className="mx-auto grid max-w-md grid-cols-5 items-end">
+          {MOBILE_TABS.slice(0, 2).map((t) => (
+            <MobileTab key={t.href} href={t.href} label={t.label} icon={t.icon} active={isActive(pathname, t.href)} />
+          ))}
+          <li className="flex justify-center">
+            <button type="button" onClick={() => setCaptureOpen(true)} aria-label="Tangkap cepat" className="-mt-5 grid h-14 w-14 place-items-center rounded-2xl bg-brand-solid text-white shadow-lift transition active:scale-90">
+              <Plus size={26} strokeWidth={2.6} />
+            </button>
+          </li>
+          {MOBILE_TABS.slice(2).map((t) => (
+            <MobileTab key={t.href} href={t.href} label={t.label} icon={t.icon} active={isActive(pathname, t.href)} />
+          ))}
+        </ul>
+      </nav>
+
       <AnimatePresence>
         {menuOpen && (
           <div className="fixed inset-0 z-[60] md:hidden">
@@ -90,5 +109,16 @@ export function TopBar({ email }: { email: string }) {
         )}
       </AnimatePresence>
     </>
+  );
+}
+
+function MobileTab({ href, label, icon: Icon, active }: { href: string; label: string; icon: LucideIcon; active: boolean }) {
+  return (
+    <li>
+      <Link href={href} aria-current={active ? 'page' : undefined} className={cn('flex flex-col items-center gap-0.5 py-2 text-[11px] font-medium transition-colors', active ? 'text-brand' : 'text-ink-faint')}>
+        <Icon size={22} strokeWidth={active ? 2.4 : 1.9} />
+        {label}
+      </Link>
+    </li>
   );
 }

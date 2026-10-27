@@ -9,9 +9,15 @@ import { Card } from '@/components/ui/card';
 import { Field, Input, Select } from '@/components/ui/input';
 import { dayAsDate, jakartaDay } from '@/lib/adhd/progress';
 import { Repeat } from 'lucide-react';
+import { WEEKDAY_SHORT } from '@/lib/adhd/today';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Habit' };
+
+function scheduleLabel(h: { timeOfDay: string | null; intervalDays: number | null; daysOfWeek: number[] }): string {
+  const when = h.intervalDays ? `Tiap ${h.intervalDays} hari` : h.daysOfWeek.length === 7 || !h.daysOfWeek.length ? 'Tiap hari' : h.daysOfWeek.map((d) => WEEKDAY_SHORT[d - 1]).join(', ');
+  return h.timeOfDay ? `${when} · ${h.timeOfDay}` : when;
+}
 
 export default async function HabitsPage() {
   const user = await requireUser();
@@ -31,6 +37,8 @@ export default async function HabitsPage() {
       anchorTrigger: h.anchorTrigger,
       firstSteps: h.firstSteps ?? [],
       variants: h.variants ?? [],
+      schedule: scheduleLabel(h),
+      minimumVersion: h.minimumVersion,
       stepsDone: todayLog?.stepsDone ?? 0,
       completed: todayLog?.completed ?? false,
       weekDots: Array.from({ length: 7 }, (_, i) => {
@@ -61,6 +69,35 @@ export default async function HabitsPage() {
           </Field>
           <Field label="Format bergantian (opsional)" htmlFor="h-var" hint="Pisahkan dengan koma, supaya tidak bosan">
             <Input id="h-var" name="variants" placeholder="jalan, sepeda, yoga" />
+          </Field>
+          <Field label="Jam (opsional)" htmlFor="h-time" hint="Muncul di timeline Hari Ini sesuai jamnya">
+            <Input id="h-time" name="timeOfDay" type="time" />
+          </Field>
+          <Field label="Versi mini" htmlFor="h-min" hint="Versi paling kecil yang tetap dihitung, buat hari capek">
+            <Input id="h-min" name="minimumVersion" maxLength={80} placeholder="mis. 2 menit aja" />
+          </Field>
+          <Field label="Jadwal" htmlFor="h-mode" className="sm:col-span-2">
+            <div className="space-y-2.5">
+              <Select id="h-mode" name="mode" defaultValue="days">
+                <option value="days">Hari tertentu (gym, kuliah, meditasi)</option>
+                <option value="interval">Setiap beberapa hari (cuci baju, beresin kamar)</option>
+              </Select>
+              <div className="flex flex-wrap gap-1.5" role="group" aria-label="Hari">
+                {WEEKDAY_SHORT.map((d, i) => (
+                  <label key={d} className="cursor-pointer">
+                    <input type="checkbox" name="daysOfWeek" value={i + 1} defaultChecked className="peer sr-only" />
+                    <span className="inline-grid h-9 w-11 place-items-center rounded-lg border border-line text-xs font-semibold text-ink-faint transition peer-checked:border-brand-solid peer-checked:bg-brand-soft peer-checked:text-brand peer-focus-visible:ring-2 peer-focus-visible:ring-brand-solid/50">
+                      {d}
+                    </span>
+                  </label>
+                ))}
+              </div>
+              <label className="flex items-center gap-2 text-sm text-ink-soft">
+                Kalau &quot;setiap beberapa hari&quot;: tiap
+                <Input name="intervalDays" type="number" min={1} max={60} defaultValue={3} className="w-20" />
+                hari
+              </label>
+            </div>
           </Field>
           <div className="sm:col-span-2">
             <SubmitButton>Tambah kebiasaan</SubmitButton>
