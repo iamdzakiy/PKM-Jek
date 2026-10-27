@@ -54,7 +54,8 @@ function eventInput(row: Event): GoogleEventInput {
 
 function taskInput(row: Task): GoogleEventInput | null {
   if (!row.dueAt) return null; // no time anchor → nothing sensible to hang on the calendar
-  const end = new Date(row.dueAt.getTime() + 60 * 60 * 1000);
+  // Timebox: blok kalender sepanjang estimasi tugas (default 1 jam).
+  const end = new Date(row.dueAt.getTime() + (row.estimateMin ?? 60) * 60_000);
   return {
     summary: row.title,
     start: { dateTime: row.dueAt.toISOString(), timeZone: APP_TZ },

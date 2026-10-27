@@ -50,7 +50,7 @@ export async function addTodayTask(formData: FormData): Promise<ActionResult> {
   if (!title) return { ok: false, message: 'Tulis tugasnya dulu.' };
   const time = String(formData.get('time') ?? '').trim();
   const dueAt = minutesOfDay(time) === null ? null : todayAt(time);
-  const est = Number(formData.get('estimateMin') ?? 0);
+  const est = Number(formData.get('estimateMin') ?? 30);
 
   const task = await prisma.task.create({
     data: {
@@ -194,4 +194,27 @@ export async function installStarterPack(): Promise<ActionResult> {
   }
   revalidateToday();
   return { ok: true, message: fresh.length ? `${fresh.length} rutinitas dipasang.` : 'Semua rutinitas udah ada.' };
+}
+
+// ── Timebox: seret tugas ke jam ─────────────────────────────────────────
+
+/**
+ * Pasang tugas di jam tertentu hari ini (menit sejak 00:00 WIB), atau lepas
+ * jamnya (null). Kalau Google Calendar tersambung, blok kalendernya ikut
+ * dibuat/dipindah/dihapus, sepanjang estimasi tugas.
+ */
+export async function scheduleTaskAt(taskId: string, minute: number | null): Promise<ActionResult> {
+  const user = await requireUser();
+  const task = await prisma.task.findFirst({ where: { id: taskId, userId: user.id } });
+  if (!task) return { ok: false, message: FAIL };
+
+  let dueAt: Date | null = null;
+  if (minute !== null) {
+    const m = Math.min(23 * 60 + 59, Math.max(0, Math.round(minute)));
+    dueAt = todayAt(`${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`);
+  }
+  const updated = await prisma.task.update({ where: { id: taskId }, data: { dueAt, plannedFor: todayDate(), lastTouchedAt: new Date() } });
+  await pushTaskToGoogle(updated);
+  revalidateToday();
+  return { ok: true, message: dueAt ? 'Dijadwalkan. Kalender ikut pindah.' : 'Jamnya dilepas.' };
 }

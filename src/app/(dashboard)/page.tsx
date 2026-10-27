@@ -85,6 +85,7 @@ export default async function TodayPage() {
       heatLabel: d.label,
       overdue: false,
       sortHeat: heatRank(d.heat),
+      estimate: 0,
     });
   }
 
@@ -102,6 +103,7 @@ export default async function TodayPage() {
       heatLabel: overdue ? 'Kelewat, geser ke hari ini?' : null,
       overdue,
       sortHeat: overdue ? 0 : 2,
+      estimate: t.estimateMin ?? 30,
     });
   }
 
@@ -118,6 +120,7 @@ export default async function TodayPage() {
       heatLabel: null,
       overdue: false,
       sortHeat: 3,
+      estimate: 0,
     });
   }
 
@@ -141,6 +144,7 @@ export default async function TodayPage() {
     laterChores: later,
     habitCount: habits.length,
     streak: progress?.streakDays ?? 0,
+    shields: progress?.streakFrozen ?? 2,
     xp,
     level,
     levelFloor: xpForLevel(level),

@@ -42,7 +42,7 @@ export function TopBar({ email }: { email: string }) {
 
   return (
     <>
-      <header className="sticky top-0 z-30 flex h-14 items-center justify-between gap-3 border-b border-line bg-bg/85 px-4 backdrop-blur-md sm:px-6">
+      <header className="sticky top-0 z-30 flex h-14 items-center justify-between gap-3 border-b border-line/60 bg-bg/60 px-4 backdrop-blur-xl sm:px-6">
         <div className="flex items-center gap-2">
           <Button variant="ghost" size="icon" className="md:hidden" onClick={() => setMenuOpen(true)} aria-label="Buka menu" aria-expanded={menuOpen}>
             <Menu size={19} />
@@ -63,13 +63,13 @@ export function TopBar({ email }: { email: string }) {
       <QuickCapture open={captureOpen} onClose={closeCapture} />
 
       {/* Tab bawah ala aplikasi HP: jempol cukup, tanpa buka menu. */}
-      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-md md:hidden" aria-label="Navigasi bawah">
-        <ul className="mx-auto grid max-w-md grid-cols-5 items-end">
+      <nav className="fixed inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+10px)] z-40 md:hidden" aria-label="Navigasi bawah">
+        <ul className="glass mx-auto grid max-w-md grid-cols-5 items-end rounded-[28px] px-1">
           {MOBILE_TABS.slice(0, 2).map((t) => (
             <MobileTab key={t.href} href={t.href} label={t.label} icon={t.icon} active={isActive(pathname, t.href)} />
           ))}
           <li className="flex justify-center">
-            <button type="button" onClick={() => setCaptureOpen(true)} aria-label="Tangkap cepat" className="-mt-5 grid h-14 w-14 place-items-center rounded-2xl bg-brand-solid text-white shadow-lift transition active:scale-90">
+            <button type="button" onClick={() => setCaptureOpen(true)} aria-label="Tangkap cepat" className="-mt-5 grid h-14 w-14 place-items-center rounded-full bg-ranger text-white shadow-lift ring-4 ring-bg/70 transition active:scale-90">
               <Plus size={26} strokeWidth={2.6} />
             </button>
           </li>
@@ -87,7 +87,7 @@ export function TopBar({ email }: { email: string }) {
               role="dialog"
               aria-modal="true"
               aria-label="Menu"
-              className="absolute inset-y-0 left-0 flex w-72 max-w-[85vw] flex-col gap-6 border-r border-line bg-surface px-3.5 py-5"
+              className="absolute inset-y-0 left-0 flex w-72 max-w-[85vw] flex-col gap-6 border-r border-line glass px-3.5 py-5"
               initial={{ x: '-100%' }}
               animate={{ x: 0 }}
               exit={{ x: '-100%' }}
@@ -96,7 +96,7 @@ export function TopBar({ email }: { email: string }) {
               <div className="flex items-center justify-between px-2">
                 <div className="flex items-center gap-2.5">
                   <BrandMark size={28} />
-                  <span className="font-heading text-[15px] font-bold text-ink">Second Brain</span>
+                  <span className="font-heading text-[15px] font-bold text-ink">Star Command</span>
                 </div>
                 <Button variant="ghost" size="icon" onClick={() => setMenuOpen(false)} aria-label="Tutup menu">
                   <X size={18} />

@@ -27,6 +27,9 @@ const config: Config = {
         cream: '#F2F8C9',
         navy: { DEFAULT: '#0B1120', 800: '#111C33', 700: '#16233F' },
         warn: { DEFAULT: token('warn'), soft: token('warn-soft') },
+        info: { DEFAULT: token('info'), soft: token('info-soft') },
+        ranger: token('ranger'),
+        gold: token('gold'),
         danger: { DEFAULT: token('danger'), soft: token('danger-soft') },
         energy: {
           urgent: token('energy-urgent'),
@@ -35,7 +38,7 @@ const config: Config = {
           creative: token('energy-creative'),
         },
       },
-      borderRadius: { card: '14px' },
+      borderRadius: { card: '20px' },
       boxShadow: {
         card: '0 1px 2px rgb(var(--shadow) / 0.06), 0 8px 24px -12px rgb(var(--shadow) / 0.18)',
         lift: '0 2px 4px rgb(var(--shadow) / 0.08), 0 18px 40px -16px rgb(var(--shadow) / 0.34)',
