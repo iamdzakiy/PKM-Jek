@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ArrowUpRight, CalendarDays, Check, ChevronDown, Clock, Flame, GripVertical, Inbox, LayoutGrid, ListTree, Moon, Plus, Rocket, Shield, Sparkles, Volume2, VolumeX, Zap } from 'lucide-react';
+import { ArrowUpRight, BrainCircuit, CalendarDays, Check, ChevronDown, Clock, Flame, GripVertical, Inbox, LayoutGrid, ListTree, Moon, Plus, Rocket, Shield, Sparkles, Volume2, VolumeX, Zap } from 'lucide-react';
 import { addTodayTask, closeDay, installStarterPack, planTask, scheduleTaskAt, setTodayEnergy, toggleHabitToday, toggleTaskDone } from '@/app/actions/today';
 import { ActionForm, SubmitButton } from '@/components/ui/form';
 import { Input, Select, Textarea } from '@/components/ui/input';
@@ -50,6 +50,8 @@ export interface TodayData {
   levelFloor: number;
   levelCeil: number;
   week: { ymd: string; active: boolean; isToday: boolean }[];
+  /** kuis active recall yang jatuh tempo */
+  recallDue: number;
 }
 
 /** Batas realistis kerja fokus per hari (Sunsama): 5 jam. */
@@ -302,6 +304,15 @@ export function TodayBoard({ data }: { data: TodayData }) {
               {data.inbox.length > 0 && ` · ${data.inbox.length} di inbox`} · buka timeline
               <ChevronDown size={15} className="-rotate-90" />
             </button>
+            {data.recallDue > 0 && (
+              <Link href="/recall" className="glass flex items-center gap-3 rounded-2xl px-4 py-3 text-sm transition hover:ring-1 hover:ring-info/40">
+                <BrainCircuit size={18} className="shrink-0 text-info" />
+                <span className="flex-1 text-ink">
+                  {data.recallDue} kuis recall <span className="text-ink-faint">· ±{Math.max(1, Math.ceil(data.recallDue / 3))} menit</span>
+                </span>
+                <ArrowUpRight size={15} className="text-ink-faint" />
+              </Link>
+            )}
           </motion.div>
         ) : (
           <motion.div key="timeline" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6, transition: { duration: 0.12 } }} transition={{ duration: 0.24, ease: EASE }} className="mt-4">
@@ -717,11 +728,11 @@ function QuickAdd() {
   return (
     <ActionForm action={addTodayTask} className="mt-3 flex gap-2">
       <Input name="title" placeholder="Tambah misi hari ini…" maxLength={200} required aria-label="Tugas baru" className="flex-1" />
-      <Select name="estimateMin" defaultValue="30" aria-label="Estimasi" className="w-[84px]">
+      <Select name="estimateMin" defaultValue="30" aria-label="Estimasi" className="w-[104px]">
         <option value="15">15m</option>
         <option value="30">30m</option>
         <option value="60">1j</option>
-        <option value="90">1.5j</option>
+        <option value="90">90m deep</option>
         <option value="120">2j</option>
       </Select>
       <SubmitButton size="md" className="bg-ranger px-3">
@@ -810,7 +821,7 @@ function CloseDay({ closed, defaultOpen }: { closed: boolean; defaultOpen: boole
                   <Input name="meditationMin" type="number" min={0} max={120} inputMode="numeric" placeholder="5" className="w-20" />
                   menit
                 </label>
-                <SubmitButton className="ml-auto">Kunci cockpit</SubmitButton>
+                <SubmitButton className="ml-auto">Shutdown complete</SubmitButton>
               </div>
             </ActionForm>
           </motion.div>

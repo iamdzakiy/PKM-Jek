@@ -47,6 +47,7 @@ model User {
   checkins           DailyCheckin[]
   workouts           WorkoutLog[]
   bodyLogs           BodyLog[]
+  plans              PlanEntry[]
 }
 
 // ── PIMO entities ──────────────────────────────────────────────────────
@@ -564,4 +565,20 @@ model BodyLog {
   createdAt DateTime @default(now())
 
   @@unique([userId, date])
+}
+
+// ── Multi-scale planning: Vision (sekali), target musim (kuartal), top 3 minggu ──
+
+model PlanEntry {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // "VISION" | "SEASON" | "WEEK"
+  scope     String
+  // "" untuk vision, "2026-Q4", "2026-W44"
+  period    String   @default("")
+  content   String   @default("")
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, scope, period])
 }

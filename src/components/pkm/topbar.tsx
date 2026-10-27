@@ -3,10 +3,11 @@
 import { useCallback, useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Menu, Plus, X, type LucideIcon } from 'lucide-react';
+import { Menu, Plus, Search, X, type LucideIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { BrandMark } from './brand-mark';
 import { QuickCapture } from './quick-capture';
+import { CommandPalette } from './command-palette';
 import { ThemeToggle } from './theme-toggle';
 import { AccountBlock, SidebarNav } from './sidebar';
 import Link from 'next/link';
@@ -16,21 +17,27 @@ import { ALL_NAV, MOBILE_TABS, isActive } from './nav';
 export function TopBar({ email }: { email: string }) {
   const pathname = usePathname();
   const [captureOpen, setCaptureOpen] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const closePalette = useCallback(() => setPaletteOpen(false), []);
   const [menuOpen, setMenuOpen] = useState(false);
 
   const closeCapture = useCallback(() => setCaptureOpen(false), []);
-  const current = ALL_NAV.find((n) => isActive(pathname, n.href))?.label ?? 'Second Brain';
+  const current = ALL_NAV.find((n) => isActive(pathname, n.href))?.label ?? 'Star Command';
 
   useEffect(() => setMenuOpen(false), [pathname]);
 
-  // Ctrl/Cmd+K opens capture from anywhere; plain "c" only when not typing.
+  // Ctrl/Cmd+K (atau "/") membuka satu kotak cari-atau-tangkap; "c" langsung tangkap cepat.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
       const typing = target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable);
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
-        setCaptureOpen(true);
+        setCaptureOpen(false);
+        setPaletteOpen(true);
+      } else if (!typing && e.key === '/') {
+        e.preventDefault();
+        setPaletteOpen(true);
       } else if (!typing && !e.metaKey && !e.ctrlKey && !e.altKey && (e.key === 'c' || e.key === ' ')) {
         e.preventDefault();
         setCaptureOpen(true);
@@ -50,17 +57,21 @@ export function TopBar({ email }: { email: string }) {
           <p className="font-heading text-[15px] font-semibold text-ink">{current}</p>
         </div>
         <div className="flex items-center gap-1.5">
-          <Button size="sm" onClick={() => setCaptureOpen(true)} aria-keyshortcuts="Control+K">
+          <Button variant="secondary" size="sm" onClick={() => setPaletteOpen(true)} aria-keyshortcuts="Control+K" aria-label="Cari">
+            <Search size={15} />
+            <span className="hidden sm:inline">Cari</span>
+            <kbd className="ml-1 hidden rounded bg-surface px-1.5 py-0.5 font-sans text-[11px] text-ink-faint lg:inline">Ctrl K</kbd>
+          </Button>
+          <Button size="sm" onClick={() => setCaptureOpen(true)} className="hidden md:inline-flex" aria-keyshortcuts="c">
             <Plus size={15} strokeWidth={2.4} />
-            <span className="hidden sm:inline">Tangkap cepat</span>
-            <span className="sm:hidden">Baru</span>
-            <kbd className="ml-1 hidden rounded bg-white/15 px-1.5 py-0.5 font-sans text-[11px] lg:inline">Ctrl K</kbd>
+            Tangkap
           </Button>
           <ThemeToggle />
         </div>
       </header>
 
       <QuickCapture open={captureOpen} onClose={closeCapture} />
+      <CommandPalette open={paletteOpen} onClose={closePalette} />
 
       {/* Tab bawah ala aplikasi HP: jempol cukup, tanpa buka menu. */}
       <nav className="fixed inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+10px)] z-40 md:hidden" aria-label="Navigasi bawah">

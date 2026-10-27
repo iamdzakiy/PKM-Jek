@@ -23,7 +23,7 @@ export default async function TodayPage() {
   const end = new Date(start.getTime() + DAY);
   const weekAgo = new Date(start.getTime() - 6 * DAY);
 
-  const [checkin, habits, tasks, inbox, events, upcoming, progress, wins] = await Promise.all([
+  const [checkin, habits, tasks, inbox, events, upcoming, progress, wins, recallDue] = await Promise.all([
     prisma.dailyCheckin.findUnique({ where: { userId_date: { userId: user.id, date: today } } }),
     prisma.habit.findMany({
       where: { userId: user.id, archived: false },
@@ -59,6 +59,7 @@ export default async function TodayPage() {
     }),
     prisma.userProgress.findUnique({ where: { userId: user.id } }),
     prisma.microWin.findMany({ where: { userId: user.id, createdAt: { gte: weekAgo } }, select: { createdAt: true } }),
+    prisma.activeRecallSession.count({ where: { nextReviewAt: { lte: now }, note: { userId: user.id } } }),
   ]);
 
   // Habit yang sudah selesai hari ini perlu log hari ini; ambil terpisah supaya `take: 1` di atas tetap "terakhir selesai".
@@ -158,6 +159,7 @@ export default async function TodayPage() {
     levelFloor: xpForLevel(level),
     levelCeil: xpForLevel(level + 1),
     week,
+    recallDue,
   };
 
   return <TodayBoard data={data} />;

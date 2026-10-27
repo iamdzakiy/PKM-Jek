@@ -47,7 +47,7 @@ export const HABIT_LINKS: Record<string, string> = {
   yoga: '/training',
   timbang: '/training',
   'cek pagi': '/admin',
-  'review mingguan': '/progress',
+  'review mingguan': '/review',
 };
 
 /**
