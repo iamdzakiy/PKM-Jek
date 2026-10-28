@@ -1,7 +1,8 @@
 import Link from 'next/link';
-import { ArrowUpRight, CalendarClock, DatabaseBackup, FileDown } from 'lucide-react';
+import { ArrowUpRight, CalendarClock, DatabaseBackup, FileDown, SlidersHorizontal } from 'lucide-react';
 import { PageHeader } from '@/components/pkm/page-header';
 import { SettingsPanel } from '@/components/pkm/settings-panel';
+import { SignOutButton } from '@/components/pkm/sidebar';
 
 export const metadata = { title: 'Pengaturan' };
 
@@ -35,6 +36,15 @@ export default function SettingsPage() {
         <span className="flex-1 font-medium text-ink">Google Calendar</span>
         <ArrowUpRight size={15} className="text-ink-faint" />
       </Link>
+      <Link href="/engine" className="glass mt-2 flex items-center gap-3 rounded-card px-5 py-4 text-sm transition hover:ring-1 hover:ring-brand/40">
+        <SlidersHorizontal size={18} className="shrink-0 text-brand" />
+        <span className="flex-1 font-medium text-ink">Pembobotan prioritas</span>
+        <ArrowUpRight size={15} className="text-ink-faint" />
+      </Link>
+      <div className="glass mt-2 flex items-center gap-3 rounded-card py-2 pl-5 pr-2 text-sm">
+        <span className="flex-1 font-medium text-ink">Keluar dari akun</span>
+        <SignOutButton />
+      </div>
     </div>
   );
 }
