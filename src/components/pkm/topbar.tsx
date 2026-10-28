@@ -2,29 +2,25 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
-import { AnimatePresence, motion } from 'framer-motion';
-import { Menu, Plus, Search, X, type LucideIcon } from 'lucide-react';
+import { Plus, Search, Settings, type LucideIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { BrandMark } from './brand-mark';
 import { QuickCapture } from './quick-capture';
 import { CommandPalette } from './command-palette';
 import { ThemeToggle } from './theme-toggle';
-import { AccountBlock, SidebarNav } from './sidebar';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
-import { ALL_NAV, MOBILE_TABS, isActive } from './nav';
+import { SPACES, pageOf, spaceOf } from './nav';
 
 export function TopBar({ email }: { email: string }) {
   const pathname = usePathname();
   const [captureOpen, setCaptureOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const closePalette = useCallback(() => setPaletteOpen(false), []);
-  const [menuOpen, setMenuOpen] = useState(false);
 
   const closeCapture = useCallback(() => setCaptureOpen(false), []);
-  const current = ALL_NAV.find((n) => isActive(pathname, n.href))?.label ?? 'Star Command';
-
-  useEffect(() => setMenuOpen(false), [pathname]);
+  const space = spaceOf(pathname);
+  const current = pageOf(pathname)?.label ?? 'Star Command';
 
   // Ctrl/Cmd+K (atau "/") membuka satu kotak cari-atau-tangkap; "c" langsung tangkap cepat.
   useEffect(() => {
@@ -49,12 +45,12 @@ export function TopBar({ email }: { email: string }) {
 
   return (
     <>
-      <header className="sticky top-0 z-30 flex h-14 items-center justify-between gap-3 border-b border-line/60 bg-bg/60 px-4 backdrop-blur-xl sm:px-6">
-        <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon" className="md:hidden" onClick={() => setMenuOpen(true)} aria-label="Buka menu" aria-expanded={menuOpen}>
-            <Menu size={19} />
-          </Button>
-          <p className="font-heading text-[15px] font-semibold text-ink">{current}</p>
+      <header className="sticky top-0 z-30 flex h-14 items-center justify-between gap-3 border-b border-line/60 bg-bg/80 px-4 backdrop-blur-md sm:px-6">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <Link href="/" className="md:hidden" aria-label="Star Command, ke Hari Ini">
+            <BrandMark size={26} />
+          </Link>
+          <p className="truncate font-heading text-[15px] font-semibold text-ink">{current}</p>
         </div>
         <div className="flex items-center gap-1.5">
           <Button variant="secondary" size="sm" onClick={() => setPaletteOpen(true)} aria-keyshortcuts="Control+K" aria-label="Cari">
@@ -67,58 +63,31 @@ export function TopBar({ email }: { email: string }) {
             Tangkap
           </Button>
           <ThemeToggle />
+          <Link href="/settings" aria-label="Pengaturan" title={email} className="grid h-9 w-9 place-items-center rounded-xl text-ink-soft transition-colors hover:bg-surface-2 hover:text-ink md:hidden">
+            <Settings size={18} />
+          </Link>
         </div>
       </header>
 
       <QuickCapture open={captureOpen} onClose={closeCapture} />
       <CommandPalette open={paletteOpen} onClose={closePalette} />
 
-      {/* Tab bawah ala aplikasi HP: jempol cukup, tanpa buka menu. */}
+      {/* Tab bawah di HP: 4 ruang, tombol tangkap cepat di tengah. */}
       <nav className="fixed inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+10px)] z-40 md:hidden" aria-label="Navigasi bawah">
-        <ul className="glass mx-auto grid max-w-md grid-cols-5 items-end rounded-[28px] px-1">
-          {MOBILE_TABS.slice(0, 2).map((t) => (
-            <MobileTab key={t.href} href={t.href} label={t.label} icon={t.icon} active={isActive(pathname, t.href)} />
+        <ul className="mx-auto grid max-w-md grid-cols-5 items-end rounded-[28px] border border-line/70 bg-surface/95 px-1 shadow-lift">
+          {SPACES.slice(0, 2).map((t) => (
+            <MobileTab key={t.key} href={t.href} label={t.label} icon={t.icon} active={space?.key === t.key} />
           ))}
           <li className="flex justify-center">
             <button type="button" onClick={() => setCaptureOpen(true)} aria-label="Tangkap cepat" className="-mt-5 grid h-14 w-14 place-items-center rounded-full bg-ranger text-white shadow-lift ring-4 ring-bg/70 transition active:scale-90">
               <Plus size={26} strokeWidth={2.6} />
             </button>
           </li>
-          {MOBILE_TABS.slice(2).map((t) => (
-            <MobileTab key={t.href} href={t.href} label={t.label} icon={t.icon} active={isActive(pathname, t.href)} />
+          {SPACES.slice(2).map((t) => (
+            <MobileTab key={t.key} href={t.href} label={t.label} icon={t.icon} active={space?.key === t.key} />
           ))}
         </ul>
       </nav>
-
-      <AnimatePresence>
-        {menuOpen && (
-          <div className="fixed inset-0 z-[60] md:hidden">
-            <motion.div className="absolute inset-0 bg-navy/60" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setMenuOpen(false)} aria-hidden="true" />
-            <motion.aside
-              role="dialog"
-              aria-modal="true"
-              aria-label="Menu"
-              className="absolute inset-y-0 left-0 flex w-72 max-w-[85vw] flex-col gap-6 border-r border-line glass px-3.5 py-5"
-              initial={{ x: '-100%' }}
-              animate={{ x: 0 }}
-              exit={{ x: '-100%' }}
-              transition={{ type: 'spring', stiffness: 420, damping: 40 }}
-            >
-              <div className="flex items-center justify-between px-2">
-                <div className="flex items-center gap-2.5">
-                  <BrandMark size={28} />
-                  <span className="font-heading text-[15px] font-bold text-ink">Star Command</span>
-                </div>
-                <Button variant="ghost" size="icon" onClick={() => setMenuOpen(false)} aria-label="Tutup menu">
-                  <X size={18} />
-                </Button>
-              </div>
-              <SidebarNav onNavigate={() => setMenuOpen(false)} />
-              <AccountBlock email={email} />
-            </motion.aside>
-          </div>
-        )}
-      </AnimatePresence>
     </>
   );
 }

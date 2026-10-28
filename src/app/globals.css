@@ -33,7 +33,7 @@
   --info-soft: 219 242 252;
   --shadow: 40 20 60;
   --glass: 255 255 255;
-  --glass-alpha: 0.66;
+  --glass-alpha: 0.9;
   --glass-edge: 17 20 32;
   --glass-edge-alpha: 0.07;
   --glow-a: 123 31 162;
@@ -73,7 +73,7 @@
   --info-soft: 6 44 60;
   --shadow: 0 0 0;
   --glass: 26 30 44;
-  --glass-alpha: 0.58;
+  --glass-alpha: 0.86;
   --glass-edge: 255 255 255;
   --glass-edge-alpha: 0.09;
   --glow-a: 123 31 162;
@@ -94,10 +94,17 @@
     @apply bg-bg font-sans text-ink antialiased;
     font-feature-settings: 'cv11', 'ss01';
     /* Nebula halus di belakang kaca: ungu kiri atas, hijau kanan bawah. */
+  }
+  /* Nebula di lapisan tetap sendiri: tidak dicat ulang tiap scroll (lebih ringan dari background-attachment: fixed). */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
     background-image:
       radial-gradient(60rem 40rem at -10% -10%, rgb(var(--glow-a) / 0.16), transparent 60%),
       radial-gradient(50rem 36rem at 110% 110%, rgb(var(--glow-b) / 0.10), transparent 60%);
-    background-attachment: fixed;
   }
   h1,
   h2,
@@ -120,10 +127,9 @@
 
 @layer utilities {
   /* Liquid glass: permukaan tembus pandang + blur + tepi tipis berkilau. */
+  /* Tanpa backdrop-filter: blur di tiap kartu adalah penyebab utama lag di HP. */
   .glass {
     background: rgb(var(--glass) / var(--glass-alpha));
-    -webkit-backdrop-filter: blur(22px) saturate(170%);
-    backdrop-filter: blur(22px) saturate(170%);
     border: 1px solid rgb(var(--glass-edge) / var(--glass-edge-alpha));
     box-shadow:
       inset 0 1px 0 rgb(255 255 255 / 0.18),
@@ -132,6 +138,9 @@
   }
   .tabular {
     font-variant-numeric: tabular-nums;
+  }
+  .page-enter {
+    animation: page-enter 0.22s cubic-bezier(0.22, 1, 0.36, 1) both;
   }
   .scroll-thin {
     scrollbar-width: thin;
@@ -175,4 +184,11 @@ html[data-motion='reduce'] *::after {
   animation-iteration-count: 1 !important;
   transition-duration: 0.01ms !important;
   scroll-behavior: auto !important;
+}
+
+@keyframes page-enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
 }

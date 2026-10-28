@@ -1,13 +1,4 @@
-'use client';
-
-import { motion } from 'framer-motion';
-import { EASE } from '@/components/motion/primitives';
-
-/** A template re-mounts on every navigation, which is what gives each page its enter animation. */
+/** Re-mount tiap navigasi; animasi masuk pakai CSS (lebih ringan dari JS). */
 export default function Template({ children }: { children: React.ReactNode }) {
-  return (
-    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, ease: EASE }}>
-      {children}
-    </motion.div>
-  );
+  return <div className="page-enter">{children}</div>;
 }
