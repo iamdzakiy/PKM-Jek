@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ArrowRight, CalendarDays, CheckSquare, CornerDownLeft, FolderKanban, Hash, Moon, NotebookText, Plus, Search, User } from 'lucide-react';
-import { quickCapture } from '@/app/actions/capture';
+import { captureAnywhere } from '@/lib/offline/outbox';
 import { searchEverything, type SearchHit, type SearchResult } from '@/app/actions/search';
 import { useToast } from '@/components/ui/toast';
 import { EASE } from '@/components/motion/primitives';
@@ -82,7 +82,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
     fd.set('text', text);
     fd.set('device', 'text');
     startSave(async () => {
-      const r = await quickCapture(fd);
+      const r = await captureAnywhere(fd);
       toast({ kind: r.ok ? 'success' : 'error', message: r.message ?? (r.ok ? 'Tertangkap.' : 'Belum tersimpan.'), href: r.href });
       if (r.ok) onClose();
     });

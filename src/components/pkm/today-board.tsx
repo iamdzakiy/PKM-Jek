@@ -4,14 +4,15 @@ import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ArrowUpRight, BrainCircuit, CalendarDays, CalendarX2, Check, ChevronDown, Clock, Flame, GripVertical, Inbox, LayoutGrid, ListTree, Moon, NotebookPen, Plus, Rocket, Shield, SkipForward, Sparkles, Target, Volume2, VolumeX, Zap } from 'lucide-react';
-import { addTodayTask, closeDay, deferTask, installStarterPack, planTask, scheduleTaskAt, setTodayEnergy, toggleHabitToday, toggleTaskDone } from '@/app/actions/today';
+import { ArrowUpRight, BrainCircuit, CalendarDays, CalendarX2, Check, ChevronDown, Clock, CloudOff, ListTodo, Flame, GripVertical, Inbox, LayoutGrid, ListTree, Moon, NotebookPen, Plus, Rocket, Shield, SkipForward, Sparkles, Target, Volume2, VolumeX, Zap } from 'lucide-react';
+import { closeDay, deferTask, installStarterPack, planTask, scheduleTaskAt, setTodayEnergy } from '@/app/actions/today';
 import { ActionForm, SubmitButton } from '@/components/ui/form';
 import { Input, Select, Textarea } from '@/components/ui/input';
 import { useToast } from '@/components/ui/toast';
 import { EASE } from '@/components/motion/primitives';
 import { hhmm, jakartaMinutes, minutesOfDay, WEEKDAY_SHORT, type HabitHeat } from '@/lib/adhd/today';
 import { usePrefs } from '@/lib/prefs';
+import { send, useOutbox, type Op } from '@/lib/offline/outbox';
 import { cn, formatDate } from '@/lib/utils';
 import { FocusMode } from './focus-mode';
 import { InboxSweep } from './inbox-sweep';
@@ -189,9 +190,16 @@ export function TodayBoard({ data }: { data: TodayData }) {
   }
 
   const low = energy === 1;
+  const outbox = useOutbox();
+  // Centang yang masih di outbox (offline) tetap terlihat sampai server mengonfirmasi.
+  const pendingDone = useMemo(() => {
+    const m: Record<string, boolean> = {};
+    for (const o of outbox) if (o.kind === 'habit' || o.kind === 'task') m[`${o.kind[0]}-${String(o.args[0])}`] = Boolean(o.args[1]);
+    return m;
+  }, [outbox]);
   const items = useMemo(
-    () => data.items.map((i) => ({ ...i, done: doneMap[i.key] ?? i.done, minute: i.key in minuteMap ? minuteMap[i.key] : i.minute })),
-    [data.items, doneMap, minuteMap]
+    () => data.items.map((i) => ({ ...i, done: doneMap[i.key] ?? pendingDone[i.key] ?? i.done, minute: i.key in minuteMap ? minuteMap[i.key] : i.minute })),
+    [data.items, doneMap, pendingDone, minuteMap]
   );
   const checkable = items.filter((i) => i.kind !== 'event' && (i.done || !notToday.includes(i.key)));
   const doneCount = checkable.filter((i) => i.done).length;
@@ -223,9 +231,9 @@ export function TodayBoard({ data }: { data: TodayData }) {
       toast({ message: finishing ? 'Mission cleared! Semua sektor aman hari ini.' : `${CHEERS[Math.floor(Math.random() * CHEERS.length)]} +${item.kind === 'habit' ? 10 : 8} XP` });
     }
     try {
-      const r = item.kind === 'habit' ? await toggleHabitToday(item.id, nextDone, mini || low) : await toggleTaskDone(item.id, nextDone);
+      const r = item.kind === 'habit' ? await send('habit', [item.id, nextDone, mini || low], item.title) : await send('task', [item.id, nextDone], item.title);
       if (!r.ok) throw new Error();
-      startTransition(() => router.refresh());
+      if (!r.queued) startTransition(() => router.refresh());
     } catch {
       setDoneMap((m) => ({ ...m, [item.key]: item.done }));
       toast({ kind: 'error', message: 'Belum tersimpan. Coba sekali lagi?' });
@@ -330,6 +338,8 @@ export function TodayBoard({ data }: { data: TodayData }) {
               <MissionCard key={queue[0].key} item={queue[0]} nowMin={nowMin} low={low} onDone={() => toggle(queue[0])} onFocus={() => setFocusing(queue[0])} onSkip={queue.length > 1 ? () => skip(queue[0].key) : undefined} onNotToday={() => notTodayFor(queue[0])} />
             ) : null}
 
+            <TodoCard items={items.filter((i) => i.kind === 'task')} pending={outbox} onToggle={(i) => toggle(i)} />
+
             {evening && !data.closed ? (
               <CloseDay closed={false} defaultOpen />
             ) : (
@@ -355,7 +365,7 @@ export function TodayBoard({ data }: { data: TodayData }) {
               </button>
             )}
             <button type="button" onClick={() => changeView('timeline')} className="flex w-full items-center justify-center gap-2 py-2 text-sm font-medium text-ink-faint transition hover:text-ink">
-              {Math.max(0, total - doneCount - Math.min(3, queue.length))} misi lain · buka timeline
+              Lihat semua per jam · buka timeline
               <ChevronDown size={15} className="-rotate-90" />
             </button>
             {data.recallDue > 0 && (
@@ -808,22 +818,95 @@ function Row({ item, nowMin, low, burst, onToggle, onSchedule, onShift }: { item
   );
 }
 
-function QuickAdd() {
+function QuickAdd({ className = 'mt-3' }: { className?: string }) {
+  const toast = useToast();
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  async function submit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const form = e.currentTarget;
+    const fd = new FormData(form);
+    const title = String(fd.get('title') ?? '').trim();
+    if (!title) return;
+    setBusy(true);
+    try {
+      const r = await send('addToday', [{ title, estimateMin: String(fd.get('estimateMin') ?? '30') }], title);
+      toast({ kind: r.ok ? 'success' : 'error', message: r.message ?? 'Masuk Hari Ini.' });
+      if (r.ok) {
+        form.reset();
+        if (!r.queued) router.refresh();
+      }
+    } catch {
+      toast({ kind: 'error', message: 'Belum tersimpan. Coba sekali lagi?' });
+    } finally {
+      setBusy(false);
+    }
+  }
   return (
-    <ActionForm action={addTodayTask} className="mt-3 flex gap-2">
-      <Input name="title" placeholder="Tambah misi hari ini…" maxLength={200} required aria-label="Tugas baru" className="flex-1" />
-      <Select name="estimateMin" defaultValue="30" aria-label="Estimasi" className="w-[104px]">
+    <form onSubmit={submit} className={cn('flex gap-2', className)}>
+      <Input name="title" placeholder="Tambah to-do hari ini…" maxLength={200} required aria-label="To-do baru" className="flex-1" />
+      <Select name="estimateMin" defaultValue="30" aria-label="Estimasi" className="w-[92px]">
         <option value="15">15m</option>
         <option value="30">30m</option>
         <option value="60">1j</option>
-        <option value="90">90m deep</option>
+        <option value="90">90m</option>
         <option value="120">2j</option>
       </Select>
-      <SubmitButton size="md" className="bg-ranger px-3">
-        <Plus size={16} strokeWidth={2.6} />
+      <button type="submit" disabled={busy} className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-ranger text-white transition active:scale-95 disabled:opacity-60">
+        <Plus size={18} strokeWidth={2.6} />
         <span className="sr-only">Tambah</span>
-      </SubmitButton>
-    </ActionForm>
+      </button>
+    </form>
+  );
+}
+
+/** To-do hari ini: semua tugas yang direncanakan hari ini, bisa dicentang dan ditambah langsung. */
+function TodoCard({ items, pending, onToggle }: { items: TodayItem[]; pending: Op[]; onToggle: (i: TodayItem) => void }) {
+  const [open, setOpen] = useState(true);
+  useEffect(() => setOpen(readLocal('sc-todo-open') !== '0'), []);
+  const queuedAdds = pending.filter((o) => o.kind === 'addToday');
+  const sorted = [...items].sort((a, b) => Number(a.done) - Number(b.done));
+  const left = items.filter((i) => !i.done).length + queuedAdds.length;
+  function flip() {
+    setOpen((o) => {
+      writeLocal('sc-todo-open', o ? '0' : '1');
+      return !o;
+    });
+  }
+  return (
+    <section className="glass rounded-card p-3" aria-label="To-do hari ini">
+      <button type="button" onClick={flip} aria-expanded={open} className="flex w-full items-center gap-2 px-2 py-1 text-left">
+        <ListTodo size={16} className="text-ranger" />
+        <span className="flex-1 font-heading text-[15px] font-semibold text-ink">To-do hari ini</span>
+        <span className="rounded-full bg-surface-2 px-2 py-0.5 text-xs font-semibold text-ink-soft tabular">{left ? `${left} lagi` : items.length ? 'beres' : 'kosong'}</span>
+        <ChevronDown size={16} className={cn('text-ink-faint transition', open ? 'rotate-180' : '')} />
+      </button>
+      {open && (
+        <div className="px-1 pb-1">
+          {sorted.length + queuedAdds.length > 0 && (
+            <ul className="mt-1 space-y-0.5">
+              {sorted.map((i) => (
+                <li key={i.key} className="flex items-center gap-3 rounded-2xl px-1 py-1.5">
+                  <CheckButton done={i.done} label={i.title} onClick={() => onToggle(i)} size="sm" />
+                  <p className={cn('min-w-0 flex-1 text-[15px]', i.done ? 'text-ink-faint line-through' : 'font-medium text-ink')}>{i.title}</p>
+                  <span className="shrink-0 text-xs text-ink-faint tabular">{i.minute !== null ? hhmm(i.minute) : i.estimate ? `${i.estimate}m` : ''}</span>
+                </li>
+              ))}
+              {queuedAdds.map((o) => (
+                <li key={o.id} className="flex items-center gap-3 rounded-2xl px-1 py-1.5 opacity-70">
+                  <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full border-[2.5px] border-dashed border-ink-faint/50">
+                    <CloudOff size={13} className="text-ink-faint" />
+                  </span>
+                  <p className="min-w-0 flex-1 text-[15px] font-medium text-ink">{o.label}</p>
+                  <span className="shrink-0 text-xs text-gold">nunggu sync</span>
+                </li>
+              ))}
+            </ul>
+          )}
+          <QuickAdd className="mt-2" />
+        </div>
+      )}
+    </section>
   );
 }
 
