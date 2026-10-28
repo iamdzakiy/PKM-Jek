@@ -1,6 +1,7 @@
 import { requireUser } from '@/lib/current-user';
 import { Sidebar } from '@/components/pkm/sidebar';
 import { TopBar } from '@/components/pkm/topbar';
+import { OfflineSync } from '@/components/pkm/offline-sync';
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   // Enforces sign-in + resolves the Prisma User row; middleware.ts already
@@ -16,6 +17,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
           {children}
         </main>
       </div>
+      <OfflineSync />
     </div>
   );
 }

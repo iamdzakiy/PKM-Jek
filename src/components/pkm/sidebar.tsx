@@ -67,7 +67,16 @@ export function AccountBlock({ email }: { email: string }) {
         <p className="truncate text-xs font-medium text-ink">{email}</p>
         <p className="text-[11px] text-ink-faint">Ruang privat</p>
       </div>
-      <form action={signOut}>
+      <form
+        action={signOut}
+        onSubmit={() => {
+          // Hapus salinan halaman & antrean offline dari perangkat saat keluar.
+          navigator.serviceWorker?.controller?.postMessage('clear');
+          try {
+            localStorage.removeItem('sc-outbox');
+          } catch {}
+        }}
+      >
         <button type="submit" title="Keluar" aria-label="Keluar" className="grid h-8 w-8 place-items-center rounded-lg text-ink-soft transition hover:bg-danger-soft hover:text-danger">
           <LogOut size={15} />
         </button>

@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { CornerDownLeft, Mic, X } from 'lucide-react';
-import { quickCapture } from '@/app/actions/capture';
+import { captureAnywhere } from '@/lib/offline/outbox';
 import { ActionForm, SubmitButton } from '@/components/ui/form';
 import { Textarea } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -110,7 +110,7 @@ export function QuickCapture({ open, onClose }: { open: boolean; onClose: () => 
               </Button>
             </div>
 
-            <ActionForm action={quickCapture} onDone={(r) => { if (r.ok) { setEnergy(null); setVoiceUsed(false); onClose(); } }} className="space-y-3">
+            <ActionForm action={captureAnywhere} onDone={(r) => { if (r.ok) { setEnergy(null); setVoiceUsed(false); onClose(); } }} className="space-y-3">
               <input type="hidden" name="device" value={voiceUsed ? 'voice' : 'text'} />
               <Textarea
                 ref={textRef}
